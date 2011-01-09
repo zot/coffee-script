@@ -1592,7 +1592,7 @@ exports.MoBind = class MoBind extends Base
     else if @filters.length > 1
       expr = "#{expr}.filter(function(#{@variable}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})})"
     func = "function(#{@variable}){#{code}}"
-    return (if @returns then 'return ' else '') + (if @returns and !@last then "Monad.flatMap(#{expr}, #{func})" else "#{expr}.#{if @returns then 'map' else 'forEach'}(#{func})")
+    "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(#{func})"
 
 exports.MoFilter = class MoFilter extends Base
   constructor: (@expr) ->

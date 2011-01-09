@@ -18,6 +18,12 @@ EmptyMonad.prototype.filter = (f) -> this
 Monad.prototype.length = 1
 Monad.prototype.map = (f) -> new Monad(f(this[0]))
 Monad.prototype.filter = (f) -> if f(this[0]) then this else Monad.empty
+Array.prototype.flatMap = (f) ->
+    ret = []
+    for item in this.map(f)
+      for element in item
+        ret.push element
+    ret
 
 sys.p 1
 sys.p (mofor
