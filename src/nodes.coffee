@@ -1520,6 +1520,89 @@ exports.For = class For extends Base
       defs += @tab + new Assign(ref, fn).compile(o, LEVEL_TOP) + ';\n'
     defs
 
+#### Mofor
+# A translation of Scala's for-comprehension, that handles, mapping, filtering, and
+# iteration over mixed collections and monads
+
+exports.Mofor = class Mofor extends Base
+  constructor: (clauses, body) ->
+#    console.log "clauses: #{clauses}"
+    @body = Expressions.wrap [body]
+    @firstClause = clauses[0]
+    @firstClause.link clauses[1...clauses.length], body
+    @numClauses = clauses.length
+    @returns = false
+
+  children: ['clauses', 'body']
+
+  isStatement: YES
+
+  makeReturn: ->
+    @returns = yes
+    @firstClause.makeReturn()
+    this
+
+  compileNode: (o) ->
+    body            = Expressions.wrap [@body]
+    lastJumps       = last(body.expressions)?.jumps()
+    @returns        = no if lastJumps and lastJumps instanceof Return
+    idtN            = @tab
+    for num in [1..@numClauses]
+      idtN          += TAB
+    code = @firstClause.compile merge(o, indent: idtN), LEVEL_TOP
+    """
+    #{if @returns then '' else '\n' + @tab}#{code}
+    """
+
+# MoBind
+# A bind clause in a MoFor
+exports.MoBind = class MoBind extends Base
+  constructor: (@variable, @expression) ->
+    @filters = []
+
+  children: ['variable', 'expression']
+
+  link: (slice, body) ->
+    while slice.length > 0 and slice[0] instanceof MoFilter
+      @filters.push slice[0]
+      slice = slice[1...slice.length]
+    if slice.length == 0
+      @next = body
+      @last = true
+    else
+      @next = slice[0]
+      @last = !@next.link slice[1...slice.length], body
+    @last
+
+  last: NO
+
+  makeReturn: ->
+    @returns = yes
+    @next.makeReturn()
+    this
+
+  assigns: (name) ->
+    @[if @context is 'object' then 'value' else 'variable'].assigns name
+
+  compileNode: (o) ->
+    expr        = @expression.compile o, LEVEL_LIST
+    code        = @next.compile o, LEVEL_TOP
+    if @filters.length == 1
+      expr      = "#{expr}.filter(function(#{@variable}) {return #{@filters[0].compile o, LEVEL_LIST}})"
+    else if @filters.length > 1
+      expr = "#{expr}.filter(function(#{@variable}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})})"
+    func = "function(#{@variable}){#{code}}"
+    return (if @returns then 'return ' else '') + (if @returns and !@last then "Monad.flatMap(#{expr}, #{func})" else "#{expr}.#{if @returns then 'map' else 'forEach'}(#{func})")
+
+exports.MoFilter = class MoFilter extends Base
+  constructor: (@expr) ->
+
+  children: ['expr']
+
+  compileNode: (o) ->
+    @expr.compile o, LEVEL_LIST
+
+
 #### Switch
 
 # A JavaScript *switch* statement. Converts into a returnable expression on-demand.

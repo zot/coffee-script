@@ -28,6 +28,8 @@ class exports.Rewriter
     @addImplicitParentheses()
     @ensureBalance BALANCED_PAIRS
     @rewriteClosingParens()
+    @rewriteMoforBindings()
+#    console.log (t[0] + '/' + t[1] for t in @tokens).join ' '
     @tokens
 
   # Rewrite the token stream, looking one token ahead and behind.
@@ -124,6 +126,23 @@ class exports.Rewriter
       tokens.splice idx, 0, tok
       @detectEnd i + 2, condition, action
       2
+
+  rewriteMoforBindings: ->
+    inMofor = false
+    @scanTokens (token, i, tokens) ->
+#      console.log "token: #{token[0]}/#{token[1]}"
+      if inMofor and token[1] is '<' and tokens.length > i + 1 and tokens[i+1][1] is '-'
+#        console.log "SPLICING..."
+        tok = ['<-', '<-', token[2]]
+        tok.generated = yes
+        tokens.splice i, 2, tok
+      if token[0] is 'MOFOR'
+ #       console.log '\nfound mofor\n'
+        inMofor = true
+      else if inMofor and token[0] is 'OUTDENT' or token[1] is 'do'
+  #      console.log '\nout of mofor\n'
+        inMofor = false
+      1
 
   # Methods may be optionally called without parentheses, for simple cases.
   # Insert the implicit parentheses here, so that the parser doesn't have to

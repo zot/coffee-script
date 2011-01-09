@@ -96,6 +96,7 @@ grammar =
     o 'Try'
     o 'While'
     o 'For'
+    o 'Mofor'
     o 'Switch'
     o 'Class'
   ]
@@ -459,6 +460,46 @@ grammar =
     o 'FORIN Expression BY Expression WHEN Expression', -> source: $2, step:  $4, guard: $6
   ]
 
+  # Mofor is the monadic for.  If you use it as an expression, it returns
+  # either a monad or a collection of flattened results.  If you use it as a statement,
+  # It just behaves like a loop.  Here's an example usage:
+  # `friendsSeniorParents = mofor
+  #   person <- people
+  #   friend <- person.friends
+  #   father <- friend.father
+  #   if father.age > 50
+  #   mother <- friend.mother
+  #   if mother.age > 50
+  # ->
+  #   [father, mother]
+  Mofor: [
+    o 'MOFOR MoClauses TERMINATOR -> Block',    -> new Mofor $2, $5
+  ]
+
+  MoClauses: [
+    o 'INDENT MoBind OUTDENT',                  -> $2
+    o 'INDENT MoBind MoreMoClauses OUTDENT',    -> $2.concat $3
+  ]
+
+  MoreMoClauses: [
+    o 'TERMINATOR MoBind',                      -> $2
+    o 'TERMINATOR MoFilter',                    -> $2
+    o 'MoreMoClauses TERMINATOR MoBind',        -> $1.concat $3
+    o 'MoreMoClauses TERMINATOR MoFilter',      -> $1.concat $3
+  ]
+
+  # a Mofor bind clause
+  # `var <- expr` is translated to a send of forEach(), map(), or flatMap()
+  MoBind: [
+    o 'IDENTIFIER <- Expression',               -> [new MoBind $1, $3]
+  ]
+
+  # a Mofor filter clause
+  # an if is translated as an if inside the bind
+  MoFilter: [
+    o 'POST_IF Expression',                          -> [new MoFilter $2]
+  ]
+
   Switch: [
     o 'SWITCH Expression INDENT Whens OUTDENT',            -> new Switch $2, $4
     o 'SWITCH Expression INDENT Whens ELSE Block OUTDENT', -> new Switch $2, $4, $6
@@ -560,7 +601,7 @@ operators = [
   ['nonassoc',  'INDENT', 'OUTDENT']
   ['right',     '=', ':', 'COMPOUND_ASSIGN', 'RETURN', 'THROW', 'EXTENDS']
   ['right',     'FORIN', 'FOROF', 'BY', 'WHEN']
-  ['right',     'IF', 'ELSE', 'FOR', 'DO', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS']
+  ['right',     'IF', 'ELSE', 'FOR', 'DO', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS', 'MOFOR']
   ['right',     'POST_IF']
 ]
 

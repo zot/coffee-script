@@ -505,7 +505,7 @@ JS_KEYWORDS = [
 ]
 
 # CoffeeScript-only keywords.
-COFFEE_KEYWORDS = ['undefined', 'then', 'unless', 'until', 'loop', 'of', 'by', 'when']
+COFFEE_KEYWORDS = ['undefined', 'then', 'unless', 'until', 'loop', 'of', 'by', 'when', 'mofor']
 COFFEE_KEYWORDS.push op for op of COFFEE_ALIASES =
   and  : '&&'
   or   : '||'
