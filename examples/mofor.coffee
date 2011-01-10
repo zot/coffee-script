@@ -1,12 +1,17 @@
 sys=require 'sys'
+
 none =
   length: 0
   map: (f) -> this
   flatMap: (f) -> this
   filter: (f) -> this
-  toString: -> 'None'
-Some = (value) -> this[0] = value
-Some.prototype =
+  toString: -> 'none'
+
+class Some
+  constructor: (value) -> this[0] = value
+
+  length: 1
+
   flatMap: (func) ->
     res = func(this[0])
     if res.length == 1
@@ -17,10 +22,13 @@ Some.prototype =
         for element in item
           ret.push element
       return ret
-  length: 1
+
   map: (f) -> new Some(f(this[0]))
+
   filter: (f) -> if f(this[0]) then this else none
+
   toString: -> "Some(#{this[0]})"
+
 Array.prototype.flatMap = (f) ->
   ret = []
   for item in this.map(f)
