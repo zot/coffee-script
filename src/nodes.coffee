@@ -1588,11 +1588,11 @@ exports.MoBind = class MoBind extends Base
     expr        = @expression.compile o, LEVEL_LIST
     code        = @next.compile o, LEVEL_TOP
     if @filters.length == 1
-      expr      = "#{expr}.filter(function(#{@variable}) {return #{@filters[0].compile o, LEVEL_LIST}})"
+      expr      = "#{expr}?.filter(function(#{@variable}) {return #{@filters[0].compile o, LEVEL_LIST}})"
     else if @filters.length > 1
-      expr = "#{expr}.filter(function(#{@variable}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})})"
+      expr = "#{expr}?.filter(function(#{@variable}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})})"
     func = "function(#{@variable}){#{code}}"
-    "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(#{func})"
+    "#{if @returns then 'return ' else ''}#{expr}?.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(#{func})"
 
 exports.MoFilter = class MoFilter extends Base
   constructor: (@expr) ->
