@@ -1,3 +1,8 @@
+Bill Burdick's mods to Coffeescript
+====
+
+More info below the Coffeescript readme contents...
+
 =
             {
          }   }   {
@@ -45,3 +50,34 @@
 
   All contributors are listed here:
   http://github.com/jashkenas/coffee-script/contributors
+
+Bill's Mods
+====
+mofor -- a for-comprehension, like Scala's  Syntax:
+
+      mofor
+        binding | filter
+        ...
+      -> body
+
+a binding is variable <- expr, where expr returns an object that conforms to these requirements:
+ 1. Understands map, flatMap, filter, and forEach
+ 1. Has a length property and is subscriptable (i.e. has properties for 0 -- length - 1)
+
+If used as an expression, mofor will translate to a series of maps, flatMaps, and filters, resulting in a flattened collection of results.  If used as a statement, it translates into a series of forEaches and filters.  This will work for nested collection traversals and monads.
+
+Here's an example that produces the cross product of two lists, where at least one of the lements is odd:
+
+      crossValues = mofor
+        n1 = numbers1
+        n2 = numbers2
+        if n1 % 2 != 0 or n2 % 2 != 0
+      -> [n1, n2]
+
+Equivalent Coffeescript would be:
+
+      crossValues = []
+      for n1 in numbers1
+        for n2 in numbers2
+	  if n1 % 2 != 0 or n2 % 2 != 0
+	    crossValues.push [n1, n2]
