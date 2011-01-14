@@ -128,6 +128,24 @@ class exports.Rewriter
       2
 
   rewriteMoforBindings: ->
+    inMofor = 0
+    @scanTokens (token, i, tokens) ->
+#      console.log "token: #{token[0]}/#{token[1]}"
+      if inMofor and token[1] is 'in'
+        tok = ['MOFORIN', 'in', token[2]]
+        tok.generated = yes
+        tokens.splice i, 1, tok
+      else if inMofor and token[0] is 'INDENT'
+        inMofor++
+        if inMofor > 2
+          inMofor = 0
+      else if token[0] is 'MOFOR'
+        inMofor = 1
+      else if inMofor and token[0] is 'OUTDENT'
+        inMofor = 0
+      1
+
+  rewriteMoforBindingsOld: ->
     inMofor = false
     @scanTokens (token, i, tokens) ->
 #      console.log "token: #{token[0]}/#{token[1]}"

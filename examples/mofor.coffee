@@ -38,21 +38,18 @@ Array.prototype.flatMap = (f) ->
 
 sys.p 1
 sys.p (mofor
-  a <- [1,2,3]
-  b <- [4,5,6]
+  a in [1,2,3]
+  b in [4,5,6]
   if a % 2 == 0 or b % 2 == 0
-->
-  [a + 1, b + 1])
+    [a + 1, b + 1])
 
 sys.p (mofor
-  a <- new Some(3)
-->
-  a
+  a in new Some(3)
+    a
 )
 
 sys.p (mofor
-  a <- new Some(3)
-  b <- none
-->
-  a
+  a in new Some(3)
+  b in none
+    a
 )

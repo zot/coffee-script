@@ -470,34 +470,33 @@ grammar =
   #   if father.age > 50
   #   mother <- friend.mother
   #   if mother.age > 50
-  # ->
   #   [father, mother]
   Mofor: [
-    o 'MOFOR MoClauses TERMINATOR -> Block',    -> new Mofor $2, $5
+    o 'MOFOR INDENT MoClauses INDENT Body OUTDENT OUTDENT',    -> new Mofor $3, $5
   ]
 
   MoClauses: [
-    o 'INDENT MoBind OUTDENT',                  -> $2
-    o 'INDENT MoBind MoreMoClauses OUTDENT',    -> $2.concat $3
+    o 'MoBind'
+    o 'MoBind MoreMoClauses',                   -> $1.concat $2
   ]
 
   MoreMoClauses: [
+    o 'MoClause'
+    o 'MoreMoClauses MoClause',                 -> $1.concat $2
+  ]
+
+  MoClause: [
     o 'TERMINATOR MoBind',                      -> $2
-    o 'TERMINATOR MoFilter',                    -> $2
-    o 'MoreMoClauses TERMINATOR MoBind',        -> $1.concat $3
-    o 'MoreMoClauses TERMINATOR MoFilter',      -> $1.concat $3
+    # a Mofor filter clause
+    # an if is translated as an if inside the bind
+    o 'TERMINATOR POST_IF Expression',          -> [new MoFilter $3]
+    o 'TERMINATOR IF Expression',               -> [new MoFilter $3]
   ]
 
-  # a Mofor bind clause
-  # `var <- expr` is translated to a send of forEach(), map(), or flatMap()
   MoBind: [
-    o 'IDENTIFIER <- Expression',               -> [new MoBind $1, $3]
-  ]
-
-  # a Mofor filter clause
-  # an if is translated as an if inside the bind
-  MoFilter: [
-    o 'POST_IF Expression',                          -> [new MoFilter $2]
+    # a Mofor bind clause
+    # `var <- expr` is translated to a send of forEach(), map(), or flatMap()
+    o 'IDENTIFIER MOFORIN Expression',    -> [new MoBind $1, $3]
   ]
 
   Switch: [
