@@ -53,3 +53,6 @@ sys.p (mofor
   b in none
     a
 )
+
+sys.p(mofor a in [1,2,3]
+  a + 2)

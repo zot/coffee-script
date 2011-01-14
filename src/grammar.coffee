@@ -472,6 +472,7 @@ grammar =
   #   if mother.age > 50
   #   [father, mother]
   Mofor: [
+    o 'MOFOR MoBind INDENT Body OUTDENT',    -> new Mofor $2, $4
     o 'MOFOR INDENT MoClauses INDENT Body OUTDENT OUTDENT',    -> new Mofor $3, $5
   ]
 
