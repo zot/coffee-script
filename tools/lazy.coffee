@@ -15,7 +15,7 @@ exports.Some = class Some
   flatMap: (func) ->
     res = func(this[0])
     if res.length == 1
-      return res[0]
+      return res
     else
       ret = []
       for item in res
