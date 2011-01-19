@@ -34,24 +34,28 @@ exports.Some = class Some
 # The find function runs the test function on each element of the sequence until one passes
 # the test.  If an item passes the test, it returns Some(item).  If no item passes the test,
 # it returns None.
-exports.Lazy = class Lazy
+exports.LazyF = class LazyF
   constructor: (f) -> @find = f
 
   forEach: (f) -> @find (x)->f(x); false
 
-  filter: (f) -> t = this; new Lazy (test) -> t.find (i) -> if f(i) then test(i) else false
+  filter: (f) -> t = this; new LazyF (test) -> t.find (i) -> if f(i) then test(i) else false
 
-  map: (f) -> t = this; new Lazy (test) -> t.find (i) -> test(f(i))
+  map: (f) -> t = this; new LazyF (test) -> t.find (i) -> test(f(i))
 
-  flatMap: (f) -> t = this; new Lazy (test) -> t.find (i) -> mofor item in f(i).find test
+  flatMap: (f) -> t = this; new LazyF (test) -> t.find (i) -> mofor item in f(i).find test
     return true
+
+  firstOpt: -> @find (i) -> true
 
   first: -> r = null; (@find (i) -> r = i; true); r
 
-  rest: -> t = this; first = true; new Lazy (test) -> t.find (i) -> if first then first = false else test(i)
+  rest: -> mofor
+    f in first
+    new LazyF (test) -> t.find (i) -> if first then first = false else test(i)
 
   toString: ->
-    s = ['Lazy(']
+    s = ['LazyF(']
     first = true
     mofor i in this
       if first
@@ -62,31 +66,52 @@ exports.Lazy = class Lazy
     s.push ')'
     s.join ''
 
-Lazy.from = (array) -> new Lazy (f) ->
+LazyF.from = (array) -> new LazyF (f) ->
   for i in array
     if f(i)
       return new Some(i)
   None
+
+###
+exports.LCons = class LCons
+  constructor: (firstFunc, restFunc) ->
+    @first = firstFunc
+    @rest = restFunc
+
+  forEach: (f) ->
+    f(@first())
+    @rest().forEach(f)
+
+  filter: (f) -> t = this; if f(@first()) then LCons.from(@first, -> t.rest().filter(f)) else @rest().filter(f)
+
+  map: (f) -> t = this; LCons.from(->f(t.first()), ->t.rest().map(f))
+
+  flatMap: (f) -> LCons.from(
+###
+
+
 # # # # # # #
 # Some tests
 # # # # # # #
-###
+
 sys = require 'sys'
 mofor
-  i in Lazy.from [0...4]
-  j in Lazy.from [5...10]
+  i in LazyF.from [0...4]
+  j in LazyF.from [5...10]
     sys.puts [i, j]
 
-sys.puts (Lazy.from [0...4]).first()
-mofor i in Lazy.from [0...4]
+sys.puts (LazyF.from [0...4]).first()
+mofor i in LazyF.from [0...4]
   sys.puts i
 sys.puts 'test toString()'
-sys.puts Lazy.from [0...4]
+sys.puts LazyF.from [0...4]
 sys.puts 'test rest.first'
-sys.puts (Lazy.from [0...4]).rest().first()
+sys.puts (LazyF.from [0...4]).rest().first()
 sys.puts 'test rest'
-mofor i in (Lazy.from [0...4]).rest()
+mofor i in (LazyF.from [0...4]).rest()
   sys.puts i
-sys.puts (Lazy.from [0...4]).rest()
-sys.puts (Lazy.from [0...4]).find (x) -> x < 0
-###
+sys.puts (LazyF.from [0...4]).rest()
+sys.puts (LazyF.from [0...4]).find (x) -> x < 0
+sys.puts (LazyF.from [1]).firstOpt()
+sys.puts (LazyF.from []).firstOpt()
+sys.puts (LazyF.from [1]).rest()

@@ -1526,7 +1526,7 @@ exports.For = class For extends Base
 
 exports.Mofor = class Mofor extends Base
   constructor: (clauses, body) ->
-    @body = Expressions.wrap [body]
+    @body = if body then Expressions.wrap [body] else null
 #    console.log "clauses: #{clauses}"
     @firstClause = clauses[0]
     @firstClause.link clauses[1...clauses.length], @body
@@ -1579,21 +1579,26 @@ exports.MoBind = class MoBind extends Base
 
   makeReturn: ->
     @returns = yes
-    @next.makeReturn()
+    if @next
+      @next.makeReturn()
     this
 
   assigns: (name) ->
     @[if @context is 'object' then 'value' else 'variable'].assigns name
 
   compileNode: (o) ->
+    if @variable == '_'
+      @variable = o.scope.freeVariable '_'
     expr        = @expression.compile o, LEVEL_LIST
-    code        = @next.compile o, LEVEL_TOP
     if @filters.length == 1
       expr      = "(#{expr} || []).filter(function(#{@variable}) {return #{@filters[0].compile o, LEVEL_LIST}})"
     else if @filters.length > 1
       expr = "(#{expr} || []).filter(function(#{@variable}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})})"
-    func = "function(#{@variable}){#{code}}"
-    "#{if @returns then 'return ' else ''}(#{expr} || []).#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(#{func})"
+    if @next == null
+      return "#{if @returns then 'return ' else ''}#{expr} || []"
+    else
+      code = @next.compile o, LEVEL_TOP
+      return "#{if @returns then 'return ' else ''}(#{expr} || []).#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(function(#{@variable}){#{code}})"
 
 exports.MoFilter = class MoFilter extends Base
   constructor: (@expr) ->

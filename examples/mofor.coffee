@@ -15,7 +15,7 @@ class Some
   flatMap: (func) ->
     res = func(this[0])
     if res.length == 1
-      return res[0]
+      return res
     else
       ret = []
       for item in res
@@ -56,3 +56,14 @@ sys.p (mofor
 
 sys.p(mofor a in [1,2,3]
   a + 2)
+
+sys.p(mofor _ in new Some(2)
+    3)
+
+sys.p(mofor
+  a in new Some(5)
+  b in new Some(6))
+
+sys.p(mofor
+  a in new Some(5)
+  new Some(6))

@@ -472,8 +472,9 @@ grammar =
   #   if mother.age > 50
   #   [father, mother]
   Mofor: [
-    o 'MOFOR MoBind INDENT Body OUTDENT',    -> new Mofor $2, $4
-    o 'MOFOR INDENT MoClauses INDENT Body OUTDENT OUTDENT',    -> new Mofor $3, $5
+    o 'MOFOR MoBind INDENT Body OUTDENT',                    -> new Mofor $2, $4
+    o 'MOFOR INDENT MoClauses INDENT Body OUTDENT OUTDENT',  -> new Mofor $3, $5
+    o 'MOFOR INDENT MoClauses OUTDENT',                      -> new Mofor $3, null
   ]
 
   MoClauses: [
@@ -498,7 +499,16 @@ grammar =
     # a Mofor bind clause
     # `var <- expr` is translated to a send of forEach(), map(), or flatMap()
     o 'IDENTIFIER MOFORIN Expression',    -> [new MoBind $1, $3]
+    o 'Expression',                       -> [new MoBind '-', $1]
   ]
+
+#  MoExp: [
+#    o 'Value'
+#    o 'Invocation'
+#    o 'Code'
+#    o 'Operation'
+#  ]
+
 
   Switch: [
     o 'SWITCH Expression INDENT Whens OUTDENT',            -> new Switch $2, $4
