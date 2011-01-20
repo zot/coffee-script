@@ -1,5 +1,5 @@
 # Array mapped trie, high-to-low, to keep order
-# needs compression
+# this needs path compression
 
 [Some, None] = ((opt) -> [opt.Some, opt.None])(require './option')
 sys = require 'sys'
@@ -24,7 +24,6 @@ class EmptyAMT
         return @empty
       if @entries[index] == v
         return this
-#      sys.puts "leaf AMT(shift: #{shift}) for put: #{i}"
       return new AMT(shift, arraySubst(@entries, index, v), @children, @size + 1)
     else
       child = @children[index].putWithShift(i, v, shift - 5)
@@ -33,15 +32,15 @@ class EmptyAMT
       newSize = @size + child.size - @children[index].size
       if newSize == 0
         return @empty
-#      sys.puts "inner AMT(shift: #{shift}) for put: #{i}"
       return new AMT(shift, @entries, arraySubst(@children, index, child), newSize)
   map: (f) -> this
   flatMap: (f) -> this
   forEach: (f) ->
+  subFor: (f, index) ->
   toString: -> t = this; "AMT(#{t.contents()})"
   contents: ->
     r = []
-    @forEach (i) -> r.push i
+    @forEach (v, i) -> r.push "#{i}: #{v}"
     r.join ', '
 
 exports.EmptyAMT = empty = new EmptyAMT
@@ -70,15 +69,15 @@ class AMT extends EmptyAMT
       @children[index] = @children[index].putWithShiftMutable(i, v, shift - 5)
       @size += @children[index].size - oldSize
     return if @size == 0 then @empty else this
-  map: (f) ->
-    newEntries = @entries.map f
-    newChildren = @children.map (child) -> child.map f
-    new AMT(@shift, newEntries, newChildren)
+  map: (f) -> new AMT(@shift, @entries.map((e) -> e.map f), @children.map((child) -> child.map f), @size)
   flatMap: (f) ->
     ret = @empty
     index = 0
     @forEach (x) -> f(x).forEach (s) -> ret = ret.putWithShiftMutable index++, s, 0
     ret
-  forEach: (f) ->
-    @entries.forEach (x) -> x.forEach f
-    @children.forEach (c) -> c.forEach f
+  forEach: (f) -> @subFor f, 0
+  subFor: (f, index) ->
+    for i in [0...32]
+      @entries[i].forEach (e) -> f(e, index | (i << @shift))
+    for i in [0...32]
+      @children[i].subFor(f, index | (i << @shift))
