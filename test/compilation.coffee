@@ -14,7 +14,7 @@ doesNotThrow -> CoffeeScript.compile 'one\r\ntwo', bare: on
 # `globals: on` removes `var`s
 eq -1, CoffeeScript.compile('x = y', bare: on, globals: on).indexOf 'var'
 
-ok 'passed' is CoffeeScript.eval '"passed"', bare: on, fileName: 'test'
+ok 'passed' is CoffeeScript.eval '"passed"', bare: on, filename: 'test'
 
 # multiple generated references
 (->
@@ -45,3 +45,16 @@ eq λ, 5
 
 test "don't accidentally stringify keywords", ->
   ok (-> this == 'this')() is false
+
+test "#1026", ->
+  cantCompile '''
+    if a
+      b
+    else
+      c
+    else
+      d
+  '''
+
+test "#1050", ->
+  cantCompile "### */ ###"

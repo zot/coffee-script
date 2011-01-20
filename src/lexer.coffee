@@ -32,6 +32,7 @@ exports.Lexer = class Lexer
   # Before returning the token stream, run it through the [Rewriter](rewriter.html)
   # unless explicitly asked not to.
   tokenize: (code, opts = {}) ->
+    code     = "\n#{code}" if WHITESPACE.test code
     code     = code.replace(/\r/g, '').replace TRAILING_SPACES, ''
 
     @code    = code           # The remainder of the source code.
@@ -169,11 +170,11 @@ exports.Lexer = class Lexer
   commentToken: ->
     return 0 unless match = @chunk.match COMMENT
     [comment, here] = match
-    @line += count comment, '\n'
     if here
       @token 'HERECOMMENT', @sanitizeHeredoc here,
         herecomment: true, indent: Array(@indent + 1).join(' ')
       @token 'TERMINATOR', '\n'
+    @line += count comment, '\n'
     comment.length
 
   # Matches JavaScript interpolated directly into the source via backticks.
@@ -342,8 +343,11 @@ exports.Lexer = class Lexer
   # erasing all external indentation on the left-hand side.
   sanitizeHeredoc: (doc, options) ->
     {indent, herecomment} = options
-    return doc if herecomment and 0 > doc.indexOf '\n'
-    unless herecomment
+    if herecomment
+      if HEREDOC_ILLEGAL.test doc
+        throw new Error "block comment cannot contain \"*/\", starting on line #{@line + 1}"
+      return doc if doc.indexOf('\n') <= 0
+    else
       while match = HEREDOC_INDENT.exec doc
         attempt = match[1]
         indent = attempt if indent is null or 0 < attempt.length < indent.length
@@ -438,10 +442,11 @@ exports.Lexer = class Lexer
         nested = new Lexer().tokenize inner, line: @line, rewrite: off
         nested.pop()
         nested.shift() if nested[0]?[0] is 'TERMINATOR'
-        if nested.length > 1
-          nested.unshift ['(', '(']
-          nested.push    [')', ')']
-        tokens.push ['TOKENS', nested]
+        if len = nested.length
+          if len > 1
+            nested.unshift ['(', '(']
+            nested.push    [')', ')']
+          tokens.push ['TOKENS', nested]
       i += expr.length
       pi = i + 1
     tokens.push ['NEOSTRING', str.slice pi] if i > pi < str.length
@@ -590,6 +595,8 @@ HEREGEX_OMIT = /\s+(?:#.*)?/g
 MULTILINER      = /\n/g
 
 HEREDOC_INDENT  = /\n+([^\n\S]*)/g
+
+HEREDOC_ILLEGAL = /\*\//
 
 ASSIGNED        = /^\s*@?([$A-Za-z_][$\w\x7f-\uffff]*|['"].*['"])[^\n\S]*?[:=][^:=>]/
 
