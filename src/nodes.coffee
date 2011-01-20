@@ -1546,12 +1546,12 @@ exports.Mofor = class Mofor extends Base
     body            = Expressions.wrap [@body]
     lastJumps       = last(body.expressions)?.jumps()
     @returns        = no if lastJumps and lastJumps instanceof Return
-    idtN            = @tab
-    for num in [1..@numClauses]
-      idtN          += TAB
-    code = @firstClause.compile merge(o, indent: idtN), LEVEL_TOP
+    code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_TOP
     """
-    #{if @returns then '' else '\n' + @tab}#{code}
+    #{if @returns then '' else @tab + '(function(){'}
+    #{@tab + TAB}var monad;
+    #{@tab + TAB}#{code}
+    #{if @returns then '' else @tab + '})()'}
     """
 
 # MoBind
@@ -1589,16 +1589,17 @@ exports.MoBind = class MoBind extends Base
   compileNode: (o) ->
     if @variable == '_'
       @variable = o.scope.freeVariable '_'
-    expr        = @expression.compile o, LEVEL_LIST
+#   expr        = "(monad = #{@expression.compile o, LEVEL_LIST} || [])"
+    expr        = "(monad = #{@expression.compile o, LEVEL_LIST})"
     if @filters.length == 1
-      expr      = "(#{expr} || []).filter(function(#{@variable}) {return #{@filters[0].compile o, LEVEL_LIST}})"
+      expr      = "#{expr}.filter(function(#{@variable}) {return #{@filters[0].compile o, LEVEL_LIST}})"
     else if @filters.length > 1
-      expr = "(#{expr} || []).filter(function(#{@variable}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})})"
+      expr = "#{expr}.filter(function(#{@variable}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})})"
     if @next == null
-      return "#{if @returns then 'return ' else ''}#{expr} || []"
+      return "#{if @returns then 'return ' else ''}#{expr}"
     else
       code = @next.compile o, LEVEL_TOP
-      return "#{if @returns then 'return ' else ''}(#{expr} || []).#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(function(#{@variable}){#{code}})"
+      return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(function(#{@variable}){#{code}})"
 
 exports.MoFilter = class MoFilter extends Base
   constructor: (@expr) ->

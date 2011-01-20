@@ -1,0 +1,17 @@
+* functional version of coffeescript
+
+* multiple assignment to a variable is an error
+
+* properties can only be assigned in a constructor (and only once)
+
+* "safe" version of for-loop for mapping:
+
+      a = for i in x
+        ...
+
+becomes:
+
+      a = []
+      for (var j in x) (function(i){
+        a.push(...)
+      })(j)
