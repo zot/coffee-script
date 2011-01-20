@@ -32,8 +32,7 @@ class Some
 Array.prototype.flatMap = (f) ->
   ret = []
   for item in this.map(f)
-    for element in item
-      ret.push element
+    item.forEach (i) -> ret.push i
   ret
 
 sys.p 1

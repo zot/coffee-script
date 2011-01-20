@@ -4,6 +4,7 @@ exports.None = None =
   map: (f) -> this
   flatMap: (f) -> this
   filter: (f) -> this
+  forEach: (f) ->
   toString: -> 'None'
 
 # A monad indicating the presence of a value
@@ -26,6 +27,8 @@ class Some
   map: (f) -> new Some(f(this[0]))
 
   filter: (f) -> if f(this[0]) then this else None
+
+  forEach: (f) -> f(this[0])
 
   toString: -> "Some(#{this[0]})"
 
