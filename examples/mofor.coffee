@@ -44,7 +44,7 @@ sys.p (mofor
 
 sys.p (mofor
   a in new Some(3)
-    a
+    a + 1
 )
 
 sys.p (mofor

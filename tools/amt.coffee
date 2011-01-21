@@ -1,7 +1,8 @@
-# Array mapped trie, high-to-low, to keep order
+# Array Mapped Trie (high-to-low shifting, to preserve order)
 # this needs path compression
+# change putWithShiftMutable to be a private function?
 
-[Some, None] = ((opt) -> [opt.Some, opt.None])(require './option')
+[Some, None] = ((opt) -> [opt.Some, opt.None]) require './option'
 sys = require 'sys'
 
 exports.arraySubst = arraySubst = (a, i, v) ->
@@ -43,9 +44,8 @@ class EmptyAMT
     @forEach (v, i) -> r.push "#{i}: #{v}"
     r.join ', '
 
-exports.EmptyAMT = empty = new EmptyAMT
-EmptyAMT.prototype.empty = empty
-EmptyAMT.prototype.children = (empty for i in [0...32])
+exports.EmptyAMT = EmptyAMT.prototype.empty = new EmptyAMT
+EmptyAMT.prototype.children = (EmptyAMT.prototype.empty for i in [0...32])
 EmptyAMT.prototype.putWithShiftMutable = EmptyAMT.prototype.putWithShift
 
 class AMT extends EmptyAMT
@@ -53,11 +53,11 @@ class AMT extends EmptyAMT
   get: (i) ->
     shifted = i >> @shift
     index = shifted & 31
-    if shifted == index then @entries[index] else @children[index].get(i)
+    if (i & ((1 << @shift) - 1)) == 0 then @entries[index] else @children[index].get(i)
   putWithShiftMutable: (i, v, shift) ->
     shifted = i >> shift
     index = shifted & 31
-    if shifted == index
+    if (i & ((1 << shift) - 1)) == 0
       if @entries[index] != v
         @entries[index] = v
         if v == None
@@ -71,6 +71,7 @@ class AMT extends EmptyAMT
     return if @size == 0 then @empty else this
   map: (f) -> new AMT(@shift, @entries.map((e) -> e.map f), @children.map((child) -> child.map f), @size)
   flatMap: (f) ->
+    # use mutable operations here because this is encapsulated
     ret = @empty
     index = 0
     @forEach (x) -> f(x).forEach (s) -> ret = ret.putWithShiftMutable index++, s, 0

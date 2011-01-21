@@ -1,11 +1,18 @@
 # A monad indicating the absence of a value
 exports.None = None =
   length: 0
+
   map: (f) -> this
+
   flatMap: (f) -> this
+
   filter: (f) -> this
+
   forEach: (f) ->
+
   toString: -> 'None'
+
+  noneSome: (nF, sF) -> nF()
 
 # A monad indicating the presence of a value
 class Some
@@ -31,5 +38,13 @@ class Some
   forEach: (f) -> f(this[0])
 
   toString: -> "Some(#{this[0]})"
+
+  noneSome: (nF, sF) -> sF()
+
+Array.prototype.find = (f) ->
+  for i in this
+    if f(i)
+      return new Some(i)
+  return None
 
 exports.Some = (x) -> new Some(x)

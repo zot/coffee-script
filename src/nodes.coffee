@@ -1526,8 +1526,8 @@ exports.For = class For extends Base
 
 exports.Mofor = class Mofor extends Base
   constructor: (clauses, body) ->
+#    console.log "Mofor,\nclauses: #{clauses}\nbody: #{body}"
     @body = if body then Expressions.wrap [body] else null
-#    console.log "clauses: #{clauses}"
     @firstClause = clauses[0]
     @firstClause.link clauses[1...clauses.length], @body
     @numClauses = clauses.length
@@ -1545,7 +1545,7 @@ exports.Mofor = class Mofor extends Base
   compileNode: (o) ->
     body            = Expressions.wrap [@body]
     lastJumps       = last(body.expressions)?.jumps()
-    @returns        = no if lastJumps and lastJumps instanceof Return
+#    @returns        = no if lastJumps and lastJumps instanceof Return
     code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_TOP
     """
     #{if @returns then '' else @tab + '(function(){'}
@@ -1564,9 +1564,15 @@ exports.MoBind = class MoBind extends Base
   children: ['variable', 'expression']
 
   link: (slice, body) ->
-    while slice.length > 0 and slice[0] instanceof MoFilter
-      @filters.push slice[0]
+    while slice.length > 0 and ((slice[0] instanceof MoFilter) or (slice[0] instanceof MoBind and slice[0].expression instanceof If))
+      if slice[0] instanceof MoFilter
+        @filters.push slice[0]
+      else
+        @filters.push new MoFilter(slice[0].expression.condition)
+        if !body and slice.length == 1
+          body = slice[0].expression.body
       slice = slice[1...slice.length]
+#    console.log "MoBind, slice.length = #{slice.length}"
     if slice.length == 0
       @next = body
       @last = true
