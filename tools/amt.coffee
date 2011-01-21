@@ -1,9 +1,8 @@
 # Array Mapped Trie (high-to-low shifting, to preserve order)
-# this needs path compression
-# change putWithShiftMutable to be a private function?
+# THIS NEEDS PATH COMPRESSION
+# make putWithShiftMutable a private function?
 
 [Some, None] = ((opt) -> [opt.Some, opt.None]) require './option'
-sys = require 'sys'
 
 exports.arraySubst = arraySubst = (a, i, v) ->
   newArray = a.slice(0, a.length)
@@ -74,7 +73,7 @@ class AMT extends EmptyAMT
     # use mutable operations here because this is encapsulated
     ret = @empty
     index = 0
-    @forEach (x) -> f(x).forEach (s) -> ret = ret.putWithShiftMutable index++, s, 0
+    @forEach (x) -> f(x).forEach (s) -> ret = ret.putWithShiftMutable index++, Some(s), 0
     ret
   forEach: (f) -> @subFor f, 0
   subFor: (f, index) ->

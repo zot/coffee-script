@@ -39,7 +39,7 @@ class Some
 
   toString: -> "Some(#{this[0]})"
 
-  noneSome: (nF, sF) -> sF()
+  noneSome: (nF, sF) -> sF(this[0])
 
 Array.prototype.find = (f) ->
   for i in this

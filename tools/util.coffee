@@ -9,3 +9,10 @@ Array.prototype.findIndex = (f) ->
     if f(v)
       return i
   return -1
+
+Array.prototype.without = (d) ->
+  a = []
+  for v, i in this
+    if i != d
+      a.push v
+  a
