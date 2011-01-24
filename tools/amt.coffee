@@ -43,10 +43,6 @@ class EmptyAMT
     @forEach (v, i) -> r.push "#{i}: #{v}"
     r.join ', '
 
-exports.EmptyAMT = EmptyAMT.prototype.empty = new EmptyAMT
-EmptyAMT.prototype.children = (EmptyAMT.prototype.empty for i in [0...32])
-EmptyAMT.prototype.putWithShiftMutable = EmptyAMT.prototype.putWithShift
-
 class AMT extends EmptyAMT
   constructor: (@shift, @entries, @children, @size) ->
   get: (i) ->
@@ -81,3 +77,7 @@ class AMT extends EmptyAMT
       @entries[i].forEach (e) -> f(e, index | (i << @shift))
     for i in [0...32]
       @children[i].subFor(f, index | (i << @shift))
+
+exports.EmptyAMT = EmptyAMT.prototype.empty = new EmptyAMT
+EmptyAMT.prototype.children = (EmptyAMT.prototype.empty for i in [0...32])
+EmptyAMT.prototype.putWithShiftMutable = EmptyAMT.prototype.putWithShift

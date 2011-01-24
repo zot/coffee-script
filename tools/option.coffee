@@ -1,6 +1,12 @@
 # A monad indicating the absence of a value
 exports.None = None =
+  isNone: true
+
+  same: (o) -> o == this
+
   length: 0
+
+  has: (v) -> false
 
   map: (f) -> this
 
@@ -17,6 +23,12 @@ exports.None = None =
 # A monad indicating the presence of a value
 class Some
   constructor: (value) -> this[0] = value
+
+  isNone: true
+
+  same: (o) -> o instanceof Some and o.has this[0]
+
+  has: (v) -> this[0] is v
 
   length: 1
 
