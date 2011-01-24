@@ -1,5 +1,5 @@
 require './util'
-[EmptyAMT, arraySubst] = ((amt) -> [amt.EmptyAMT, amt.arraySubst]) require './amt'
+[AMT, arraySubst] = ((amt) -> [amt.AMT, amt.arraySubst]) require './amt'
 [Some, None] = ((opt) -> [opt.Some, opt.None]) require './option'
 doHash = require('./hash').doHash
 
@@ -21,7 +21,7 @@ addValue = (array, value, cmp) ->
   arraySubst array, index, value
 
 exports.HAMT = class HAMT
-  constructor: (@hash = hashFunc, @eq = ((a, b) -> a == b), @amt = EmptyAMT) ->
+  constructor: (@hash = hashFunc, @eq = ((a, b) -> a == b), @amt = AMT) ->
   put: (key, value) -> new HAMT(@hash, @eq, @amt.put @hash(key), (@amt.get(@hash(key)).noneSome (->[[key, value]]), ((v) -> addValue(v, [key, value], @eq))))
   get: (key) -> (mofor
     pairs in @amt.get(@hash key)

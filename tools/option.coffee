@@ -24,7 +24,7 @@ exports.None = None =
 class Some
   constructor: (value) -> this[0] = value
 
-  isNone: true
+  isNone: false
 
   same: (o) -> o instanceof Some and o.has this[0]
 

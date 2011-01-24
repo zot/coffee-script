@@ -1,83 +1,116 @@
-# Array Mapped Trie (high-to-low shifting, to preserve order)
-# THIS NEEDS PATH COMPRESSION
-# make putWithShiftMutable a private function?
+# Array mapped tree -- high-to-low shifting, to preserve order
+# Very much like an array mapped trie, but the data is all at the leaves and there is path compression
 
 [Some, None] = ((opt) -> [opt.Some, opt.None]) require './option'
+require './util'
 
 exports.arraySubst = arraySubst = (a, i, v) ->
   newArray = a.slice(0, a.length)
   newArray[i] = v
   newArray
 
-class EmptyAMT
-  size: 0
-  shift: 30
-  entries: None for i in [0...32]
-  get: (i) -> None
-  put: (i, v) -> @putWithShift(i, Some(v), 30)
-  remove: (i) -> @putWithShift(i, None, 30)
-  putWithShift: (i, v, shift) ->
-    shifted = i >> shift
-    index = shifted & 31
-    if (i & ((1 << shift) - 1)) == 0
-      if @size == 1 and v == None
-        return @empty
-      if @entries[index] == v
-        return this
-      return new AMT(shift, arraySubst(@entries, index, v), @children, @size + 1)
-    else
-      child = @children[index].putWithShift(i, v, shift - 5)
-      if child == @children[index]
-        return this
-      newSize = @size + child.size - @children[index].size
-      if newSize == 0
-        return @empty
-      return new AMT(shift, @entries, arraySubst(@children, index, child), newSize)
-  map: (f) -> this
-  flatMap: (f) -> this
-  forEach: (f) ->
-  subFor: (f, index) ->
-  toString: -> t = this; "AMT(#{t.contents()})"
-  contents: ->
-    r = []
-    @forEach (v, i) -> r.push "#{i}: #{v}"
-    r.join ', '
+# map over pairs and return a 32 element array with the values stored at the keys and the default elsewhere
+pairMap = (limit, defaultValue, pairs) -> a = (defaultValue for i in [0...limit]); (pairs.forEach (p) -> [i, v] = p; a[i] = v); a
 
-class AMT extends EmptyAMT
-  constructor: (@shift, @entries, @children, @size) ->
-  get: (i) ->
-    shifted = i >> @shift
-    index = shifted & 31
-    if (i & ((1 << @shift) - 1)) == 0 then @entries[index] else @children[index].get(i)
-  putWithShiftMutable: (i, v, shift) ->
-    shifted = i >> shift
-    index = shifted & 31
-    if (i & ((1 << shift) - 1)) == 0
-      if @entries[index] != v
-        @entries[index] = v
-        if v == None
-          @size--
-        else
-          @size++
-    else
-      oldSize = @children[index].size
-      @children[index] = @children[index].putWithShiftMutable(i, v, shift - 5)
-      @size += @children[index].size - oldSize
-    return if @size == 0 then @empty else this
-  map: (f) -> new AMT(@shift, @entries.map((e) -> e.map f), @children.map((child) -> child.map f), @size)
+
+class BasicAMT
+  toString: -> "AMT(#{([0].flatMap (f) => @map (v, i) -> "#{i}: #{v}").join ', '})"
+  put: (i, v) -> @putOpt i, Some(v)
+  remove: (i, v) -> @putOpt i, None
+  # mutable put/remove still return a value, but mutate the tree where possible
+  putMutable: (i, v) -> @putMutableOpt i, Some(v)
+  removeMutable: (i, v) -> @putMutableOpt i, None
+  # maps on the values in the entry options
+  map: (f) -> @mapOpt (opt, index) -> opt.map (value) -> f(value, index)
   flatMap: (f) ->
     # use mutable operations here because this is encapsulated
-    ret = @empty
+    ret = EMPTY
     index = 0
-    @forEach (x) -> f(x).forEach (s) -> ret = ret.putWithShiftMutable index++, Some(s), 0
+    @forEach (x) -> f(x).forEach (s) -> ret = ret.putMutable index++, s
     ret
-  forEach: (f) -> @subFor f, 0
-  subFor: (f, index) ->
-    for i in [0...32]
-      @entries[i].forEach (e) -> f(e, index | (i << @shift))
-    for i in [0...32]
-      @children[i].subFor(f, index | (i << @shift))
 
-exports.EmptyAMT = EmptyAMT.prototype.empty = new EmptyAMT
-EmptyAMT.prototype.children = (EmptyAMT.prototype.empty for i in [0...32])
-EmptyAMT.prototype.putWithShiftMutable = EmptyAMT.prototype.putWithShift
+
+class EmptyAMT extends BasicAMT
+  get: (i) -> None
+  putOpt: (i, o) -> o.noneSome (-> this), (_) -> AMTLeaf.forOpt i, o
+  # for an EmptyAMT, mutable put/remove is the same as immutable put/remove
+  putMutableOpt: (i, o) -> @putOpt i, o
+  map: (f) -> this
+  mapOpt: (f) -> this
+  flatMap: (f) -> this
+  putMutable: (i, v) -> @put i, v
+  filter: (f) -> this
+  forEach: (f) ->
+  dump: -> "EMPTY"
+
+exports.AMT = EMPTY = new EmptyAMT()
+
+
+class AMTLeaf extends BasicAMT
+  # shift is always 5
+  constructor: (@prefix, @entries) ->
+  entryCount: -> @entries.reduce ((a, b) -> b.noneSome (-> a), (_) -> a + 1), 0
+  get: (i) -> if (i & ~31) == @prefix then @entries[i & 31] else None
+  putOpt: (i, o) ->
+    if (i & ~31) != @prefix
+      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    if o.same @entries[i & 31]
+      return this
+    if o.isNone and @entryCount() == 1 then EMPTY else new AMTLeaf @prefix, arraySubst @entries, i & 31, o
+  putMutableOpt: (i, o) ->
+    if (i & ~31) != @prefix
+      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    @entries[i & 31] = o
+    if @entryCount() == 0 then EMPTY else this
+  # maps on the options in entries; f should return an option (allows removal)
+  mapOpt: (f) -> new AMTLeaf @prefix, @entries.map (opt, index) => f(opt, @prefix | index)
+  filter: (f) ->
+    e = @entries.map (v, index) -> v.filter (optV) -> f(optV, @prefix | index)
+    if (e.reduce ((a, b) -> a + b.map 1), 0) == 0 then EMPTY else new AMTLeaf @index, e
+  forEach: (f) -> @entries.forEach (vOpt, index) => vOpt.forEach (v) => f(v, @prefix | index)
+  dump: -> "AMTLeaf(#{@prefix} #{(@entries.flatMap (o, i) => o.map (v) => "#{i | @prefix}: #{v}").join ', '})"
+
+
+AMTLeaf.forOpt = (i, v) -> new AMTLeaf i & ~31, pairMap 32, None, [[i & 31, v]]
+
+class AMT extends BasicAMT
+  constructor: (@shift, @prefix, @children) ->
+  childIndex: (i) -> (i >> @shift) & 31
+  childCount: -> @children.reduce ((a, b) -> if b == EMPTY then a else a + 1), 0
+  get: (i) -> if (i & ~((32 << @shift) - 1)) then @children[@childIndex i].get i else None
+  putOpt: (i, o) ->
+    if (i & ~((32 << @shift) - 1)) != @prefix
+      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    index = @childIndex i
+    oldChild = @children[index]
+    newChild = oldChild.putOpt i, o
+    if newChild is oldChild
+      return this
+    if newChild == EMPTY and @childCount() == 1
+      return EMPTY
+    return new AMT @shift, @prefix, arraySubst(@children, index, newChild)
+  putMutableOpt: (i, o) ->
+    if (i & ~((32 << @shift) - 1)) != @prefix
+      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    index = @childIndex i
+    oldChild = @children[index]
+    newChild = oldChild.putMutableOpt i, o
+    @children[index] = newChild
+    return if @childCount() == 0 then EMPTY else this
+  mapOpt: (f) -> new AMT @shift, @prefix, @children.map (v) -> v.mapOpt f
+  filter: (f) ->
+    c = @children.map (v, index) -> v.filter (optV) -> f(optV, @prefix | index)
+    if (c.reduce ((a, b) -> if b instanceof EMPTY then a else a + 1), 0) then EMPTY else new AMT @shift, @prefix, c
+  forEach: (f) -> @children.forEach (child) -> child.forEach f
+  dump: -> "AMT(#{@prefix}>>#{@shift} #{(@children.flatMap (c, i) -> if c == EMPTY then None else Some(c.dump())).join ', '})"
+
+
+shiftPrefixFor = (prefixes, shift = 0, prefix = prefixes[0]) ->
+  if shift == 30 or prefixes.length == 0
+    return [shift, prefix]
+  if prefix == (prefixes[0] & ~((1 << (shift + 5)) - 1))
+    return shiftPrefixFor prefixes[1..], shift, prefix
+  shiftPrefixFor prefixes, shift + 5, prefix & ~((1 << (shift + 10)) - 1)
+
+
+AMT.forChildren = (ch...) -> ([shift, prefix] = shiftPrefixFor ch.map (l) -> l.prefix); new AMT shift, prefix, pairMap 32, EMPTY, ch.map (l) -> [(l.prefix >> shift) & 31, l]
