@@ -1533,7 +1533,7 @@ exports.Mofor = class Mofor extends Base
     @numClauses = clauses.length
     @returns = false
 
-  children: ['clauses', 'body']
+  children: ['firstClause']
 
   isStatement: YES
 
@@ -1543,21 +1543,20 @@ exports.Mofor = class Mofor extends Base
     this
 
   compileNode: (o) ->
-    body            = Expressions.wrap [@body]
-    lastJumps       = last(body.expressions)?.jumps()
-#    @returns        = no if lastJumps and lastJumps instanceof Return
     code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_TOP
     """
-    #{if @returns then '' else @tab + '(function(){'}
+    #{if @returns then '' else @tab + utility('bind') + '(function(){'}
     #{@tab + TAB}var monad;
     #{@tab + TAB}#{code}
-    #{if @returns then '' else @tab + '})()'}
+    #{if @returns then '' else @tab + '}, this)()'}
     """
+
+Mofor.onlyExprIn = (node) ->
 
 # MoBind
 # A bind clause in a MoFor
 exports.MoBind = class MoBind extends Base
-  constructor: (@variable, @expression) ->
+  constructor: (@variables, @expression) ->
     @filters = []
     @lines = []
 
@@ -1593,19 +1592,22 @@ exports.MoBind = class MoBind extends Base
     @[if @context is 'object' then 'value' else 'variable'].assigns name
 
   compileNode: (o) ->
-    if @variable == '_'
-      @variable = o.scope.freeVariable '_'
+    if @variables[0] == '_'
+      @variables[0] = o.scope.freeVariable 'i'
+    if @variables[1] == '_'
+      @variables[1] = o.scope.freeVariable 'i'
+    v = @variables.join ','
 #   expr        = "(monad = #{@expression.compile o, LEVEL_LIST} || [])"
     expr        = "(monad = #{@expression.compile o, LEVEL_LIST})"
     if @filters.length == 1
-      expr      = "#{expr}.filter(function(#{@variable}) {return #{@filters[0].compile o, LEVEL_LIST}})"
+      expr      = "#{expr}.filter(#{utility 'bind'}(function(#{v}) {return #{@filters[0].compile o, LEVEL_LIST}}, this))"
     else if @filters.length > 1
-      expr = "#{expr}.filter(function(#{@variable}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})})"
+      expr = "#{expr}.filter(#{utility 'bind'}(function(#{v}) {return (#{(filt.compile(o, LEVEL_LIST) for filt in @filters).join(') and (')})}, this))"
     if @next == null
       return "#{if @returns then 'return ' else ''}#{expr}"
     else
       code = @next.compile o, LEVEL_TOP
-      return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(function(#{@variable}){#{code}})"
+      return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(#{utility 'bind'}(function(#{v}){#{code}}, this))"
 
 exports.MoFilter = class MoFilter extends Base
   constructor: (@expr) ->
@@ -1755,7 +1757,7 @@ Closure =
     return expressions if expressions.jumps()
     func = new Code [], Expressions.wrap [expressions]
     args = []
-    if (mentionsArgs = expressions.contains @literalArgs) or
+    if (mentionsArgs = (expressions.contains @literalArgs) or expressions instanceof Mofor) or
        (               expressions.contains @literalThis)
       meth = new Literal if mentionsArgs then 'apply' else 'call'
       args = [new Literal 'this']

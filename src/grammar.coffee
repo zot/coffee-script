@@ -498,8 +498,9 @@ grammar =
   MoBind: [
     # a Mofor bind clause
     # `var <- expr` is translated to a send of forEach(), map(), or flatMap()
-    o 'IDENTIFIER MOFORIN Expression',    -> [new MoBind $1, $3]
-    o 'Expression',                       -> [new MoBind '-', $1]
+    o 'IDENTIFIER MOFORIN Expression',                  -> [new MoBind [$1], $3]
+    o 'IDENTIFIER , IDENTIFIER MOFORIN Expression',     -> [new MoBind [$1, $3], $5]
+    o 'Expression',                                     -> [new MoBind ['_'], $1]
   ]
 
 #  MoExp: [

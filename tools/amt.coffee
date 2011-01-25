@@ -14,20 +14,24 @@ pairMap = (limit, defaultValue, pairs) -> a = (defaultValue for i in [0...limit]
 
 
 class BasicAMT
-  toString: -> "AMT(#{([0].flatMap (f) => @map (v, i) -> "#{i}: #{v}").join ', '})"
   put: (i, v) -> @putOpt i, Some(v)
   remove: (i, v) -> @putOpt i, None
   # mutable put/remove still return a value, but mutate the tree where possible
   putMutable: (i, v) -> @putMutableOpt i, Some(v)
   removeMutable: (i, v) -> @putMutableOpt i, None
   # maps on the values in the entry options
-  map: (f) -> @mapOpt (opt, index) -> opt.map (value) -> f(value, index)
+  map: (f) -> @mapOpt (opt, index) -> mofor value in opt
+    f(value, index)
   flatMap: (f) ->
     # use mutable operations here because this is encapsulated
     ret = EMPTY
     index = 0
     @forEach (x) -> f(x).forEach (s) -> ret = ret.putMutable index++, s
     ret
+  toString: -> "AMT(" + (mofor
+    [0]
+    v, i in this
+      "#{i}: #{v}").join(', ') + ")"
 
 
 class EmptyAMT extends BasicAMT
@@ -46,7 +50,7 @@ class EmptyAMT extends BasicAMT
 exports.AMT = EMPTY = new EmptyAMT()
 
 
-class AMTLeaf extends BasicAMT
+exports.AMTLeaf = class AMTLeaf extends BasicAMT
   # shift is always 5
   constructor: (@prefix, @entries) ->
   entryCount: -> @entries.reduce ((a, b) -> b.noneSome (-> a), (_) -> a + 1), 0
@@ -63,13 +67,15 @@ class AMTLeaf extends BasicAMT
     @entries[i & 31] = o
     if @entryCount() == 0 then EMPTY else this
   # maps on the options in entries; f should return an option (allows removal)
-  mapOpt: (f) -> new AMTLeaf @prefix, @entries.map (opt, index) => f(opt, @prefix | index)
+  mapOpt: (f) -> new AMTLeaf @prefix, (f(opt, @prefix | index) for opt, index in @entries)
   filter: (f) ->
-    e = @entries.map (v, index) -> v.filter (optV) -> f(optV, @prefix | index)
-    if (e.reduce ((a, b) -> a + b.map 1), 0) == 0 then EMPTY else new AMTLeaf @index, e
+    e = ((opt.filter (v) -> f v, @prefix | index) for opt, index in @entries)
+    if (e.reduce ((a, b) -> a + b.map (x) -> 1), 0) == 0 then EMPTY else new AMTLeaf @prefix, e
   forEach: (f) -> @entries.forEach (vOpt, index) => vOpt.forEach (v) => f(v, @prefix | index)
-  dump: -> "AMTLeaf(#{@prefix} #{(@entries.flatMap (o, i) => o.map (v) => "#{i | @prefix}: #{v}").join ', '})"
-
+  dump: -> "AMTLeaf(#{@prefix} #{(mofor
+    o, i in @entries
+    v in o
+      "#{i | @prefix}: #{v}").join ', '})"
 
 AMTLeaf.forOpt = (i, v) -> new AMTLeaf i & ~31, pairMap 32, None, [[i & 31, v]]
 
@@ -97,15 +103,16 @@ class AMT extends BasicAMT
     newChild = oldChild.putMutableOpt i, o
     @children[index] = newChild
     return if @childCount() == 0 then EMPTY else this
-  mapOpt: (f) -> new AMT @shift, @prefix, @children.map (v) -> v.mapOpt f
+  mapOpt: (f) -> new AMT @shift, @prefix, (v.mapOpt f for v in @children)
   filter: (f) ->
-    c = @children.map (v, index) -> v.filter (optV) -> f(optV, @prefix | index)
-    if (c.reduce ((a, b) -> if b instanceof EMPTY then a else a + 1), 0) then EMPTY else new AMT @shift, @prefix, c
+    c = ((child.filter f) for child in @children)
+    if (c.reduce ((a, b) -> if b == EMPTY then a else a + 1), 0) == 0 then EMPTY else new AMT @shift, @prefix, c
   forEach: (f) -> @children.forEach (child) -> child.forEach f
-  dump: -> "AMT(#{@prefix}>>#{@shift} #{(@children.flatMap (c, i) -> if c == EMPTY then None else Some(c.dump())).join ', '})"
+  dump: -> "AMT(#{@prefix}>>#{@shift} #{(c.dump() for c, i in @children when c != EMPTY).join ', '}"
 
+sys=require 'sys'
 
-shiftPrefixFor = (prefixes, shift = 0, prefix = prefixes[0]) ->
+exports.shiftPrefixFor = shiftPrefixFor = (prefixes, shift = 0, prefix = prefixes[0]) ->
   if shift == 30 or prefixes.length == 0
     return [shift, prefix]
   if prefix == (prefixes[0] & ~((1 << (shift + 5)) - 1))
@@ -113,4 +120,4 @@ shiftPrefixFor = (prefixes, shift = 0, prefix = prefixes[0]) ->
   shiftPrefixFor prefixes, shift + 5, prefix & ~((1 << (shift + 10)) - 1)
 
 
-AMT.forChildren = (ch...) -> ([shift, prefix] = shiftPrefixFor ch.map (l) -> l.prefix); new AMT shift, prefix, pairMap 32, EMPTY, ch.map (l) -> [(l.prefix >> shift) & 31, l]
+AMT.forChildren = (ch...) -> ([shift, prefix] = shiftPrefixFor (l.prefix for l in ch)); new AMT shift, prefix, pairMap 32, EMPTY, ([(l.prefix >> shift) & 31, l] for l in ch)
