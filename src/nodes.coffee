@@ -1520,15 +1520,15 @@ exports.For = class For extends Base
       defs += @tab + new Assign(ref, fn).compile(o, LEVEL_TOP) + ';\n'
     defs
 
+
 #### Mofor
 # A translation of Scala's for-comprehension, that handles, mapping, filtering, and
 # iteration over mixed collections and monads
 
 exports.Mofor = class Mofor extends Base
   constructor: (clauses, body) ->
-    @body = if body then Expressions.wrap [body] else null
     @firstClause = clauses[0]
-    @firstClause.link clauses[1...clauses.length], @body
+    @firstClause.link clauses[1...clauses.length], if body then Expressions.wrap [body] else null
     @numClauses = clauses.length
     @returns = false
 
@@ -1542,15 +1542,13 @@ exports.Mofor = class Mofor extends Base
     this
 
   compileNode: (o) ->
-    code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_TOP
+    code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_PAREN
     """
     #{if @returns then '' else @tab + utility('bind') + '(function(){'}
     #{@tab + TAB}var monad;
     #{@tab + TAB}#{code}
     #{if @returns then '' else @tab + '}, this)()'}
     """
-
-Mofor.onlyExprIn = (node) ->
 
 # MoBind
 # A bind clause in a MoFor
@@ -1594,14 +1592,17 @@ exports.MoBind = class MoBind extends Base
     if @variables[1] == '_'
       @variables[1] = o.scope.freeVariable 'i'
     v = @variables.join ','
-    expr        = "(monad = #{@expression.compile o, LEVEL_LIST})"
+    expr        = "(monad = #{@expression.compile o, LEVEL_PAREN})"
     if @filter
-      expr      = "#{expr}.filter(#{utility 'bind'}(function(#{v}) {return #{if @filter.next then '(' else ''}#{@filter.compile o, LEVEL_LIST}#{if @filter.next then ')' else ''}}, this))"
-    if @next
+      expr      = "#{expr}.filter(#{@conditionalClosure v, @filter, o, LEVEL_PAREN})"
+    if ! @next
       return "#{if @returns then 'return ' else ''}#{expr}"
     else
-      code = @next.compile o, LEVEL_TOP
-      return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(#{utility 'bind'}(function(#{v}){#{code}}, this))"
+      return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure v, @next, o, LEVEL_TOP})"
+
+  conditionalClosure: (v, n, o, level) ->
+    str = "function(#{v}){#{n.compile o, level}}"
+    if (n.contains Closure.literalThis) then "#{utility 'bind'}(#{str}, this)" else str
 
 exports.MoFilter = class MoFilter extends Base
   constructor: (@expr) ->
@@ -1613,7 +1614,9 @@ exports.MoFilter = class MoFilter extends Base
 
   children: ['expr', 'next']
 
-  compileNode: (o) ->
+  compileNode: (o) -> "#{if @filter.next then '(' else ''}#{compileChain o}#{if @filter.next then ')' else ''}"
+
+  compileChain: (o) ->
     (@expr.compile o, LEVEL_LIST) + (if @next then ') and (' + (@next.compile o, LEVEL_LIST) else '')
 
 
