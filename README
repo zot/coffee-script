@@ -53,31 +53,67 @@ More info below the Coffeescript readme contents...
 
 Bill's Mods
 ====
-mofor -- a for-comprehension, like Scala's  Syntax:
+mofor -- a for-comprehension that works for custom collections, like Scala's for Syntax:
 
-      mofor
-        binding | filter
+      mofor [variable ["in" expr] do]
+        expr | variable "in" expr | filter
         ...
-      -> body
 
-a binding is variable <- expr, where expr returns an object that conforms to these requirements:
- 1. Understands map, flatMap, filter, and forEach
- 1. Has a length property and is subscriptable (i.e. has properties for 0 -- length - 1)
+      mofor [variable "in" expr do]
+        expr | variable "in" expr | filter
+        ...
+          body
 
-If used as an expression, mofor will translate to a series of maps, flatMaps, and filters, resulting in a flattened collection of results.  If used as a statement, it translates into a series of forEaches and filters.  This will work for nested collection traversals and monads.
+      mofor expr | variable "in" expr
+       body
 
-Here's an example that produces the cross product of two lists, where at least one of the lements is odd:
+where expr returns an object that understands map, flatMap, filter, reduce, and forEach
+
+If used as an expression, mofor will translate to a series of maps, flatMaps, reduces, and filters, resulting in either nothing (for a statement), a new version of the do expression (when using "do"), or a flattened collection of results (when not using "do").  If used as a statement, it translates into a series of forEaches and filters.  Bound closures are created where necessary (like using '=>' instead of "->").  This will work for custom collections and monads, in addition to arrays.
+
+Here's an example that produces the cross product of two collections, where at least one of the elements is odd:
 
       crossValues = mofor
-        n1 = numbers1
-        n2 = numbers2
+        n1 in numbers1
+        n2 in numbers2
         if n1 % 2 != 0 or n2 % 2 != 0
-      -> [n1, n2]
+          [n1, n2]
 
 Equivalent Coffeescript would be:
+
+      crossValues = numbers1.flatMap (n1) -> numbers2.filter((n2) -> n1 % 2 != 0 or n2 % 2 != 0).map (n2) -> [n1, n2]
+
+or (assuming that numbers1 and numbers2 are arrays and not custom collections):
 
       crossValues = []
       for n1 in numbers1
         for n2 in numbers2
 	  if n1 % 2 != 0 or n2 % 2 != 0
 	    crossValues.push [n1, n2]
+
+
+Here is an example that uses a monad to track the movement of a ship across [1,1], [1,2], [1,3], ... [5,5]:
+
+     mofor game in currentGame do
+       game.put "Moving ship"
+       mofor game do
+         x in [1,2,3,4,5]
+         y in [1,2,3,4,5]
+         game.moveShip x, y
+       game.put "Done moving ship"
+
+which translates to this:
+
+  currentGame.reduce ((game, _i1) ->
+    (game.put "Moving ship").reduce ((game) ->
+      (game.reduce ((game, _i2) ->
+        [1,2,3,4,5].reduce ((game, _i3) ->
+  	  [1,2,3,4,5].reduce ((game, _i4) ->
+	    game.moveShip x, y
+	  ), game
+	), game
+      ), game).reduce ((game, _i5) ->
+        game.put "Done moving ship"
+      ), game
+    ), game
+  ), null

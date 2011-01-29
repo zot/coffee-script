@@ -1,3 +1,5 @@
+require './util'
+
 exports.Nil = Nil =
   map: (f) -> this
   flatMap: (f) -> this
@@ -15,9 +17,12 @@ class Cons
   forEach: (f) -> f @car; @cdr.forEach f
   append: (l) -> new Cons @car, @cdr.append l
   inject: (f, v) -> @cdr.inject f, (f v, @car)
+  toString: -> "List(#{(mofor
+    [0]
+    this).join ', '})"
 
-exports.List = List = (items...) -> ListOf(items)
+exports.List = List = (items...) -> ListOf(items, 0)
 
-ListOf = (items) if items.length == 0 then Nil else new Cons items[0], ListOf items[1..]...
+ListOf = (items, i) -> if items.length == i then Nil else new Cons items[i], ListOf items, i + 1
 
 exports.Cons = (a, b) -> new Cons a, b

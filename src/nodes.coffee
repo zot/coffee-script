@@ -1526,11 +1526,12 @@ exports.For = class For extends Base
 # iteration over mixed collections and monads
 
 exports.Mofor = class Mofor extends Base
-  constructor: (clauses, body) ->
+  constructor: (@monad, clauses, body) ->
     @firstClause = clauses[0]
     @firstClause.link clauses[1...clauses.length], if body then Expressions.wrap [body] else null
-    @numClauses = clauses.length
     @returns = false
+    if @monad?
+      @firstClause.useReduce(@monad.variables[0])
 
   children: ['firstClause']
 
@@ -1543,9 +1544,13 @@ exports.Mofor = class Mofor extends Base
 
   compileNode: (o) ->
     code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_PAREN
+    if @monad?
+      func = "function(#{@monad.variables[0]}, #{o.scope.freeVariable 'i'}){#{code}}"
+      if @firstClause.contains Closure.literalThis
+        func = "#{utility 'bind'}(#{func}, this)"
+      code = "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables[0]}.reduce(#{func})"
     """
     #{if @returns then '' else @tab + utility('bind') + '(function(){'}
-    #{@tab + TAB}var monad;
     #{@tab + TAB}#{code}
     #{if @returns then '' else @tab + '}, this)()'}
     """
@@ -1557,6 +1562,12 @@ exports.MoBind = class MoBind extends Base
     @lines = []
 
   children: ['expression', 'filter', 'next']
+
+  useReduce: (rvar) ->
+    @reduceVar = rvar
+    @reduce = true
+    if @next instanceof MoBind
+      @next?.useReduce(rvar)
 
   link: (slice, body) ->
     while slice.length > 0 and ((slice[0] instanceof MoFilter) or (slice[0] instanceof MoBind and slice[0].expression instanceof If))
@@ -1592,16 +1603,16 @@ exports.MoBind = class MoBind extends Base
     if @variables[1] == '_'
       @variables[1] = o.scope.freeVariable 'i'
     v = @variables.join ','
-    expr        = "(monad = #{@expression.compile o, LEVEL_PAREN})"
+    expr        = "#{@expression.compile o, LEVEL_PAREN}"
     if @filter
       expr      = "#{expr}.filter(#{@conditionalClosure v, @filter, o, LEVEL_PAREN})"
     if ! @next
       return "#{if @returns then 'return ' else ''}#{expr}"
     else
-      return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure v, @next, o, LEVEL_TOP})"
+      return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure v, @next, o, LEVEL_TOP}#{if @reduce then ', ' + @reduceVar else ''})"
 
   conditionalClosure: (v, n, o, level) ->
-    str = "function(#{v}){#{n.compile o, level}}"
+    str = "function(#{if @reduce then @reduceVar + ', ' + v else v}){#{n.compile o, level}}"
     if (n.contains Closure.literalThis) then "#{utility 'bind'}(#{str}, this)" else str
 
 exports.MoFilter = class MoFilter extends Base
@@ -1614,7 +1625,7 @@ exports.MoFilter = class MoFilter extends Base
 
   children: ['expr', 'next']
 
-  compileNode: (o) -> "#{if @filter.next then '(' else ''}#{compileChain o}#{if @filter.next then ')' else ''}"
+  compileNode: (o) -> "return #{if next? then '(' else ''}#{@compileChain o}#{if next? then ')' else ''}"
 
   compileChain: (o) ->
     (@expr.compile o, LEVEL_LIST) + (if @next then ') and (' + (@next.compile o, LEVEL_LIST) else '')

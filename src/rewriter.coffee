@@ -128,38 +128,40 @@ class exports.Rewriter
       2
 
   rewriteMoforBindings: ->
+    mostart = 0
     inMofor = 0
+    firstLine = false
+    was = false
     @scanTokens (token, i, tokens) ->
-#      console.log "token: #{token[0]}/#{token[1]}"
       if inMofor and token[1] is 'in'
         tok = ['MOFORIN', 'in', token[2]]
         tok.generated = yes
         tokens.splice i, 1, tok
+      else if inMofor and firstLine and (token[0] is 'TERMINATOR' or token[0] is 'INDENT')
+        firstLine = false
+      else if inMofor and firstLine and token[0] is 'CALL_START' and tokens[i + 3]? and tokens[i + 1][1] is 'do' and tokens[i + 2][0] is 'CALL_END' and tokens[i + 3][0] is 'INDENT'
+        if tokens[i - 1][0] is 'IDENTIFIER' and tokens[i - 2][0] is 'MOFOR'
+          tok = ['MONADIDENT', tokens[i - 1][1], token[2]]
+          tok.generated = yes
+          tokens.splice i - 1, 4, tok
+          return 0
+        tok = ['MONADDO', 'do', token[2]]
+        tok.generated = yes
+        tokens.splice i, 3, tok
+      else if inMofor and firstLine and token[1] is 'do' and tokens[i + 2]? and tokens[i + 1][0] is 'CALL_END' and tokens[i + 2][0] is 'INDENT'
+        tok = ['MONADDO', 'do', token[2]]
+        tok.generated = yes
+        tokens.splice i, 2, tokens[i + 1], tok
       else if inMofor and token[0] is 'INDENT'
         inMofor++
         if inMofor > 2
           inMofor = 0
       else if token[0] is 'MOFOR'
         inMofor = 1
+        firstLine = true
+        mostart = i
       else if inMofor and token[0] is 'OUTDENT'
         inMofor = 0
-      1
-
-  rewriteMoforBindingsOld: ->
-    inMofor = false
-    @scanTokens (token, i, tokens) ->
-#      console.log "token: #{token[0]}/#{token[1]}"
-      if inMofor and token[1] is '<' and tokens.length > i + 1 and tokens[i+1][1] is '-'
-#        console.log "SPLICING..."
-        tok = ['<-', '<-', token[2]]
-        tok.generated = yes
-        tokens.splice i, 2, tok
-      if token[0] is 'MOFOR'
- #       console.log '\nfound mofor\n'
-        inMofor = true
-      else if inMofor and token[0] is 'OUTDENT' or token[1] is 'do'
-  #      console.log '\nout of mofor\n'
-        inMofor = false
       1
 
   # Methods may be optionally called without parentheses, for simple cases.

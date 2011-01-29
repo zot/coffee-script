@@ -35,7 +35,25 @@ Array.prototype.flatMap = (f) ->
     item.forEach (i) -> ret.push i
   ret
 
+class Mobo
+  constructor: (@value) ->
+  set: (newVal) ->
+    new Mobo newVal
+  reduce: (f, x) -> f(this, @value)
+  toString: -> "Mobo: #{@value}"
+
 sys.p 1
+
+sys.p (mofor m in new Mobo 5 do
+  m.set m.value + 1).value
+
+m = new Mobo 4
+
+sys.p (mofor m do
+  m.set m.value + 1
+  i in [1,2,3]
+    m.set m.value + i).value
+
 sys.p (mofor
   a in [1,2,3]
   b in [4,5,6]

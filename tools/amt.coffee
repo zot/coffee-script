@@ -14,6 +14,10 @@ pairMap = (limit, defaultValue, pairs) -> a = (defaultValue for i in [0...limit]
 
 
 class BasicAMT
+  putElsewhere: (i, v) ->
+    if (i & ~31) != @prefix
+      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    return null
   put: (i, v) -> @putOpt i, Some(v)
   remove: (i, v) -> @putOpt i, None
   # mutable put/remove still return a value, but mutate the tree where possible
@@ -56,14 +60,12 @@ exports.AMTLeaf = class AMTLeaf extends BasicAMT
   entryCount: -> @entries.reduce ((a, b) -> b.noneSome (-> a), (_) -> a + 1), 0
   get: (i) -> if (i & ~31) == @prefix then @entries[i & 31] else None
   putOpt: (i, o) ->
-    if (i & ~31) != @prefix
-      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    return e if (e = putElsewhere i, o) != null
     if o.same @entries[i & 31]
       return this
     if o.isNone and @entryCount() == 1 then EMPTY else new AMTLeaf @prefix, arraySubst @entries, i & 31, o
   putMutableOpt: (i, o) ->
-    if (i & ~31) != @prefix
-      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    return e if (e = putElsewhere i, o) != null
     @entries[i & 31] = o
     if @entryCount() == 0 then EMPTY else this
   # maps on the options in entries; f should return an option (allows removal)
@@ -85,8 +87,7 @@ class AMT extends BasicAMT
   childCount: -> @children.reduce ((a, b) -> if b == EMPTY then a else a + 1), 0
   get: (i) -> if (i & ~((32 << @shift) - 1)) then @children[@childIndex i].get i else None
   putOpt: (i, o) ->
-    if (i & ~((32 << @shift) - 1)) != @prefix
-      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    return e if (e = putElsewhere i, o) != null
     index = @childIndex i
     oldChild = @children[index]
     newChild = oldChild.putOpt i, o
@@ -96,8 +97,7 @@ class AMT extends BasicAMT
       return EMPTY
     return new AMT @shift, @prefix, arraySubst(@children, index, newChild)
   putMutableOpt: (i, o) ->
-    if (i & ~((32 << @shift) - 1)) != @prefix
-      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
+    return e if (e = putElsewhere i, o) != null
     index = @childIndex i
     oldChild = @children[index]
     newChild = oldChild.putMutableOpt i, o
@@ -109,8 +109,6 @@ class AMT extends BasicAMT
     if (c.reduce ((a, b) -> if b == EMPTY then a else a + 1), 0) == 0 then EMPTY else new AMT @shift, @prefix, c
   forEach: (f) -> @children.forEach (child) -> child.forEach f
   dump: -> "AMT(#{@prefix}>>#{@shift} #{(c.dump() for c, i in @children when c != EMPTY).join ', '}"
-
-sys=require 'sys'
 
 exports.shiftPrefixFor = shiftPrefixFor = (prefixes, shift = 0, prefix = prefixes[0]) ->
   if shift == 30 or prefixes.length == 0

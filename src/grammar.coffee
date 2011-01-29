@@ -464,17 +464,23 @@ grammar =
   # either a monad or a collection of flattened results.  If you use it as a statement,
   # It just behaves like a loop.  Here's an example usage:
   # `friendsSeniorParents = mofor
-  #   person <- people
-  #   friend <- person.friends
-  #   father <- friend.father
+  #   person in people
+  #   friend in person.friends
+  #   father in friend.father
   #   if father.age > 50
-  #   mother <- friend.mother
+  #   mother in friend.mother
   #   if mother.age > 50
-  #   [father, mother]
+  #     [father, mother]
   Mofor: [
-    o 'MOFOR MoBind INDENT Body OUTDENT',                    -> new Mofor $2, $4
-    o 'MOFOR INDENT MoClauses INDENT Body OUTDENT OUTDENT',  -> new Mofor $3, $5
-    o 'MOFOR INDENT MoClauses OUTDENT',                      -> new Mofor $3, null
+    o 'MOFOR MoBind INDENT Body OUTDENT',                               -> new Mofor null, $2, $4
+    o 'MOFOR MoOptMonad INDENT MoClauses INDENT Body OUTDENT OUTDENT',  -> new Mofor $2, $4, $6
+    o 'MOFOR MoOptMonad INDENT MoClauses OUTDENT',                      -> new Mofor $2, $4, null
+  ]
+
+  MoOptMonad: [
+    o '',                       -> null
+    o 'MONADIDENT',             -> new MoBind $1
+    o 'MoBind MONADDO',         -> $1[0]
   ]
 
   MoClauses: [
@@ -502,14 +508,6 @@ grammar =
     o 'IDENTIFIER , IDENTIFIER MOFORIN Expression',     -> [new MoBind [$1, $3], $5]
     o 'Expression',                                     -> [new MoBind ['_'], $1]
   ]
-
-#  MoExp: [
-#    o 'Value'
-#    o 'Invocation'
-#    o 'Code'
-#    o 'Operation'
-#  ]
-
 
   Switch: [
     o 'SWITCH Expression INDENT Whens OUTDENT',            -> new Switch $2, $4
