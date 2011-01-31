@@ -55,7 +55,7 @@ Bill's Mods
 ====
 mofor -- a for-comprehension that works for custom collections, like Scala's for Syntax:
 
-      mofor [variable ["in" expr] do]
+      mofor [[variable ["in" expr]] do]
         expr | variable "in" expr | filter
         ...
 
@@ -69,7 +69,7 @@ mofor -- a for-comprehension that works for custom collections, like Scala's for
 
 where expr returns an object that understands map, flatMap, filter, reduce, and forEach
 
-If used as an expression, mofor will translate to a series of maps, flatMaps, reduces, and filters, resulting in either nothing (for a statement), a new version of the do expression (when using "do"), or a flattened collection of results (when not using "do").  If used as a statement, it translates into a series of forEaches and filters.  Bound closures are created where necessary (like using '=>' instead of "->").  This will work for custom collections and monads, in addition to arrays.
+If used as an expression, mofor will translate to a series of maps, flatMaps, reduces, and filters, resulting in either nothing (for a statement), a new version of the do expression (when using "do"), or a flattened collection of results (when not using "do").  If used as a statement, it translates into a series of forEaches and filters.  Bound closures are created where necessary (like using '=>' instead of "->").  This will work for custom collections and monads, in addition to arrays.  Without "do," mofor uses flatMap and map.  With "do," mofor instead uses reduce.  If you nest a mofor as an expression in another mofor, you can leave out the "do" variable from the nested mofor and it will reuse the variable from the outer one.
 
 Here's an example that produces the cross product of two collections, where at least one of the elements is odd:
 
@@ -96,10 +96,12 @@ Here is an example that uses a monad to track the movement of a ship across [1,1
 
      mofor game in currentGame do
        game.put "Moving ship"
-       mofor game do
+       mofor do
          x in [1,2,3,4,5]
          y in [1,2,3,4,5]
          game.moveShip x, y
+	 p in game.pos
+	 game.print "MOVED TO: #{p[0]}, #{p[1]}"
        game.put "Done moving ship"
 
 which translates to this:
@@ -109,7 +111,11 @@ which translates to this:
       (game.reduce ((game, _i2) ->
         [1,2,3,4,5].reduce ((game, _i3) ->
   	  [1,2,3,4,5].reduce ((game, _i4) ->
-	    game.moveShip x, y
+	    game.moveShip x, y.reduce ((game, _i5) ->
+	      game.pos.reduce ((game, _i6) ->
+	        game.print "MOVED TO: #{p[0]}, #{p[1]}"
+	      ), game
+	    ), game
 	  ), game
 	), game
       ), game).reduce ((game, _i5) ->
@@ -117,3 +123,10 @@ which translates to this:
       ), game
     ), game
   ), null
+
+TODO
+Handle destructuring assignment with MoBind:
+MoBind: [
+  o 'Assignable MOFORIN Expression'
+  o 'Expression'
+]

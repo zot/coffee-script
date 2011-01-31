@@ -145,9 +145,20 @@ class exports.Rewriter
           tok.generated = yes
           tokens.splice i - 1, 4, tok
           return 0
+        if tokens[i - 1][0] is 'MOFOR'
+          tok = ['MONADIDENT', '', token[2]]
+          tok.generated = yes
+          tokens.splice i, 3, tok
+          return 0
         tok = ['MONADDO', 'do', token[2]]
         tok.generated = yes
         tokens.splice i, 3, tok
+      else if inMofor and firstLine and token[1] is 'do' and tokens[i - 1][0] is 'MOFOR'
+        if tokens[i - 1][0] is 'MOFOR'
+          tok = ['MONADIDENT', '', token[2]]
+          tok.generated = yes
+          tokens.splice i, 1, tok
+          return 0
       else if inMofor and firstLine and token[1] is 'do' and tokens[i + 2]? and tokens[i + 1][0] is 'CALL_END' and tokens[i + 2][0] is 'INDENT'
         tok = ['MONADDO', 'do', token[2]]
         tok.generated = yes

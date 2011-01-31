@@ -20,6 +20,8 @@ exports.None = None =
 
   noneSome: (nF, sF) -> nF()
 
+  reduce: (f, v) -> v
+
 # A monad indicating the presence of a value
 class Some
   constructor: (value) -> this[0] = value
@@ -52,6 +54,8 @@ class Some
   toString: -> "Some(#{this[0]})"
 
   noneSome: (nF, sF) -> sF(this[0])
+
+  reduce: (f, v) -> f(v, this[0])
 
 Array.prototype.find = (f) ->
   for i in this

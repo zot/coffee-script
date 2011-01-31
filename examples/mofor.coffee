@@ -54,6 +54,18 @@ sys.p (mofor m do
   i in [1,2,3]
     m.set m.value + i).value
 
+sys.p (mofor m do
+  m.set m.value + 1
+  mofor m do
+    i in [1,2,3]
+      m.set m.value + i).value
+
+sys.p (mofor m do
+  m.set m.value + 1
+  mofor do
+    i in [1,2,3]
+      m.set m.value + i).value
+
 sys.p (mofor
   a in [1,2,3]
   b in [4,5,6]

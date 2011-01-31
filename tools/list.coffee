@@ -7,7 +7,8 @@ exports.Nil = Nil =
   forEach: (f) ->
   toString: -> 'Nil'
   append: (l) -> l
-  inject: (f, v) -> v
+  reduce: (f, v) -> v
+  reverse: (r) -> r
 
 class Cons
   constructor: (@car, @cdr) ->
@@ -16,7 +17,8 @@ class Cons
   filter: (f) -> if f @car then new Cons @car, @cdr.filter f else @cdr.filter f
   forEach: (f) -> f @car; @cdr.forEach f
   append: (l) -> new Cons @car, @cdr.append l
-  inject: (f, v) -> @cdr.inject f, (f v, @car)
+  reduce: (f, v) -> @cdr.reduce f, (f v, @car)
+  reverse: (r = Nil) -> @cdr.reverse new Cons @car, r
   toString: -> "List(#{(mofor
     [0]
     this).join ', '})"

@@ -1531,7 +1531,7 @@ exports.Mofor = class Mofor extends Base
     @firstClause.link clauses[1...clauses.length], if body then Expressions.wrap [body] else null
     @returns = false
     if @monad?
-      @firstClause.useReduce(@monad.variables[0])
+      @firstClause.useReduce(@monad.variables)
 
   children: ['firstClause']
 
@@ -1545,10 +1545,10 @@ exports.Mofor = class Mofor extends Base
   compileNode: (o) ->
     code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_PAREN
     if @monad?
-      func = "function(#{@monad.variables[0]}, #{o.scope.freeVariable 'i'}){#{code}}"
+      func = "function(#{@monad.variables}, #{o.scope.freeVariable 'i'}){#{code}}"
       if @firstClause.contains Closure.literalThis
         func = "#{utility 'bind'}(#{func}, this)"
-      code = "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables[0]}.reduce(#{func})"
+      code = "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables}.reduce(#{func})"
     """
     #{if @returns then '' else @tab + utility('bind') + '(function(){'}
     #{@tab + TAB}#{code}
@@ -1568,6 +1568,9 @@ exports.MoBind = class MoBind extends Base
     @reduce = true
     if @next instanceof MoBind
       @next?.useReduce(rvar)
+    if @expression instanceof Mofor and @expression.monad?.variables is ''
+      @expression.monad.variables = @reduceVar
+      @expression.firstClause.useReduce @reduceVar
 
   link: (slice, body) ->
     while slice.length > 0 and ((slice[0] instanceof MoFilter) or (slice[0] instanceof MoBind and slice[0].expression instanceof If))
