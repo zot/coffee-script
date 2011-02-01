@@ -1,5 +1,6 @@
 # Array mapped tree -- high-to-low shifting, to preserve order
 # Very much like an array mapped trie, but the data is all at the leaves and there is path compression
+# compress entries/children using popct
 
 [Some, None] = ((opt) -> [opt.Some, opt.None]) require './option'
 require './util'
