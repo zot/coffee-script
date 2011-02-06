@@ -1,3 +1,7 @@
+# HAMT
+#
+# TODO: make addValue and put more conservative
+
 require './util'
 [AMT, arraySubst] = ((amt) -> [amt.AMT, amt.arraySubst]) require './amt'
 [Some, None] = ((opt) -> [opt.Some, opt.None]) require './option'

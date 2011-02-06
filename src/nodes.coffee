@@ -1543,23 +1543,29 @@ exports.Mofor = class Mofor extends Base
     this
 
   compileNode: (o) ->
+    containsThis = @firstClause.contains Closure.literalThis
     code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_PAREN
     if @monad?
       func = "function(#{@monad.variables}, #{o.scope.freeVariable 'i'}){#{code}}"
-      if @firstClause.contains Closure.literalThis
+      if containsThis
         func = "#{utility 'bind'}(#{func}, this)"
-      code = "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables}.reduce(#{func})"
-    """
-    #{if @returns then '' else @tab + utility('bind') + '(function(){'}
-    #{@tab + TAB}#{code}
-    #{if @returns then '' else @tab + '}, this)()'}
-    """
+      return "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables}.reduce(#{func})"
+#      code = "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables}.reduce(#{func})"
+    if containsThis
+      code = "utility('bind')(function(){#{code}), this)()"
+    code
+#    """
+#    #{if @returns then '' else @tab + utility('bind') + '(function(){'}
+#    #{@tab + TAB}#{code}
+#    #{if @returns then '' else @tab + '}, this)()'}
+#    """
 
 # MoBind
 # A bind clause in a MoFor
 exports.MoBind = class MoBind extends Base
   constructor: (@variables, @expression) ->
     @lines = []
+    @returns = false
 
   children: ['expression', 'filter', 'next']
 
@@ -1593,20 +1599,25 @@ exports.MoBind = class MoBind extends Base
 
   makeReturn: ->
     @returns = yes
-    if @next
-      @next.makeReturn()
+    @next.makeReturn() if @next
     this
 
   assigns: (name) ->
     @[if @context is 'object' then 'value' else 'variable'].assigns name
 
   compileNode: (o) ->
+    console.log "COMPILE: #{this}\n"
     if @variables[0] == '_'
       @variables[0] = o.scope.freeVariable 'i'
     if @variables[1] == '_'
       @variables[1] = o.scope.freeVariable 'i'
     v = @variables.join ','
-    expr        = "#{@expression.compile o, LEVEL_PAREN}"
+##    if ! @returns
+##      console.log "DOES NOT RETURN\n"
+##      console.log "@expression = #{@expression}\n"
+##    else
+##      console.log "RETURNS: #{this}\n"
+    expr        = "#{(if !@returns and @expression instanceof Return then @expression.expression else @expression).compile o, LEVEL_PAREN}"
     if @filter
       expr      = "#{expr}.filter(#{@conditionalClosure v, @filter, o, LEVEL_PAREN})"
     if ! @next
@@ -1617,6 +1628,7 @@ exports.MoBind = class MoBind extends Base
   conditionalClosure: (v, n, o, level) ->
     str = "function(#{if @reduce then @reduceVar + ', ' + v else v}){#{n.compile o, level}}"
     if (n.contains Closure.literalThis) then "#{utility 'bind'}(#{str}, this)" else str
+
 
 exports.MoFilter = class MoFilter extends Base
   constructor: (@expr) ->

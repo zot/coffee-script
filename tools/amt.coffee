@@ -1,122 +1,209 @@
 # Array mapped tree -- high-to-low shifting, to preserve order
 # Very much like an array mapped trie, but the data is all at the leaves and there is path compression
-# compress entries/children using popct
+# TODO: compress entries/children using popct and a bitmap for presence -- this would remove the need for EmptyAMT
+# TODO: next, combine prefix and shift
 
-[Some, None] = ((opt) -> [opt.Some, opt.None]) require './option'
+{Some, None} = require './option'
+{Cons, Nil} = require './list'
+{SimpleMonad} = require './monad'
 require './util'
 
-exports.arraySubst = arraySubst = (a, i, v) ->
-  newArray = a.slice(0, a.length)
-  newArray[i] = v
-  newArray
 
-# map over pairs and return a 32 element array with the values stored at the keys and the default elsewhere
-pairMap = (limit, defaultValue, pairs) -> a = (defaultValue for i in [0...limit]); (pairs.forEach (p) -> [i, v] = p; a[i] = v); a
-
-
+# BasicAMTs have
+# @prefix -- the bit prefix of the subtree's item indices
+# @items -- the children or values
 class BasicAMT
-  putElsewhere: (i, o) ->
-    if (i & ~31) != @prefix
-      return o.noneSome (=> this), (_) => AMT.forChildren this, AMTLeaf.forOpt i, o
-    return null
-  put: (i, v) -> @putOpt i, Some(v)
-  remove: (i, v) -> @putOpt i, None
+  # if the value fits in the current tree, return null
+  # otherwise, return a new subtree, containing the current tree and a new leaf
+  inSubtree: (i) -> (i & ~31) == @prefix
+  newSubtree: (add, i, v) -> if add then AMT.for this, AMTLeaf.for i, v else this
+  put: (i, v) -> @mod true, i, v
+  remove: (i, v) -> @mod false, i
   # mutable put/remove still return a value, but mutate the tree where possible
-  putMutable: (i, v) -> @putMutableOpt i, Some(v)
-  removeMutable: (i, v) -> @putMutableOpt i, None
-  # maps on the values in the entry options
-  map: (f) -> @mapOpt (opt, index) -> mofor value in opt
-    f(value, index)
-  flatMap: (f) ->
-    # use mutable operations here because this is encapsulated
-    ret = EMPTY
-    index = 0
-    @forEach (x) -> f(x).forEach (s) -> ret = ret.putMutable index++, s
-    ret
-  toString: -> "AMT(" + (mofor
-    [0]
+  putMutable: (i, v) -> @modMutable true, i, v
+  removeMutable: (i, v) -> @modMutable false, i
+  flatMap: (f) -> @reduce ((a, item, index) -> f(item, index).reduce ((b, item) -> [(b[0].put b[1], item), b[1] + 1]), a), [EMPTY, 0]
+  reduce: (f, a...) -> if a.length then @reduceArg f, a[0] else @reduceNoArg f
+  toString: -> "AMT(" + (mofor acc in (new AMTPrinter 0, Nil) do
     v, i in this
-      "#{i}: #{v}").join(', ') + ")"
+    acc.print i, v).toString() + ")"
 
 
-class EmptyAMT extends BasicAMT
-  get: (i) -> None
-  putOpt: (i, o) -> o.noneSome (-> this), (_) -> AMTLeaf.forOpt i, o
-  # for an EmptyAMT, mutable put/remove is the same as immutable put/remove
-  putMutableOpt: (i, o) -> @putOpt i, o
-  map: (f) -> this
-  mapOpt: (f) -> this
-  flatMap: (f) -> this
-  putMutable: (i, v) -> @put i, v
-  filter: (f) -> this
-  forEach: (f) ->
-  dump: -> "EMPTY"
+class AMTPrinter extends SimpleMonad
+  constructor: (@expected, @output) ->
+  print: (i, v) -> sys.puts "i: #{i}, v: #{v}"; new AMTPrinter i + 1, Cons (if i == @expected then v else i + ': ' + v), @output
+  toString: -> (mofor
+    [0]
+    @output.reverse()).join ', '
 
-exports.AMT = EMPTY = new EmptyAMT()
 
+## compressed arrays
+## array with a bitset value to indicate which of the 32 potential elements have values
+
+#create a new array with a value substitution
+exports.arraySubst = arraySubst = (a, i, v) ->
+  newArray = a[0...a.length]
+  newArray[i] = v
+  setBitset newArray, a.bitset
+
+countBits = (x) ->
+  # from http://bits.stephan-brumme.com/countBits.html
+  x  = x - ((x >>> 1) & 0x55555555)
+  x  = (x & 0x33333333) + ((x >>> 2) & 0x33333333)
+  (((x + (x >>> 4)) & 0xF0F0F0F) * 0x01010101) >>> 24
+
+lowestOneBit = (x) -> x & -x
+
+# log2 finds the log base 2 of number known to be a power of 2
+#
+# the contstants look like this in binary
+#
+# 00000000000000001111111111111111
+# 00000000111111110000000011111111
+# 00001111000011110000111100001111
+# 00110011001100110011001100110011
+# 01010101010101010101010101010101
+#
+# They do a binary search for the bit
+
+log2 = (x) ->
+  return 32 if x == 0
+  n = 31
+  n -= 16 if x & 0x0000FFFF
+  n -= 8  if x & 0x00FF00FF
+  n -= 4  if x & 0x0F0F0F0F
+  n -= 2  if x & 0x33333333
+  n -= 1  if x & 0x55555555
+  n
+
+trailingZeroes = (x) -> log2 x & -x
+
+setBitset = (array, bitset) -> array.bitset = bitset; array
+
+itemsGet = (values, index) -> values[countBits (1 << index) - 1]
+
+itemsFor = (i1, v1, i2, v2) -> if i1 < i2 then setBitset [v1, v2], (1 << i1) | (1 << i2) else itemsFor i2, v2, i1, v1
+
+itemsSet = (values, index, value) ->
+  pos = 1 << index
+  return arraySubst values, pos, value if pos & values.bitset
+  n = values[0...values.length]
+  n.splice((countBits values.bitset & (pos - 1)), 0, value)
+  setBitset n, values.bitset | pos
+
+itemsHas = (values, index) -> values.bitset & (1 << index)
+
+itemsRemove = (values, index) ->
+  pos = 1 << index
+  return values if !(pos & values.bitset)
+  n = values[0...values.length]
+  n.splice((countBits values.bitset & (pos - 1)), 1)
+  setBitset n, values.bitset & ~pos
+
+itemsDo = (values, f) ->
+  set = values.bitset
+  pos = 0
+  while set
+    b = lowestOneBit set
+    f values[pos], log2 b
+    set = set & ~b
+    pos++
+
+itemsMap = (values, f) ->
+  res = setBitset [], values.bitset
+  itemsDo values, (v, i) -> res.push f(v, i)
+  res
+
+itemsFilter = (values, f) -> itemsReduce values, ((result, v, i) ->
+  if f(v, i)
+    result.push v
+    result.bitset |= (1 << i)
+  result), (setBitset [], 0)
+
+itemsReduce = (values, f, v) -> itemsReduceArg values, f, v, values.bitset, 0
+
+itemsReduceRest = (values, f, v) -> itemsReduceArg values, f, v, values.bitset & ~(lowestOneBit values.bitset), 1
+
+itemsReduceArg = (values, f, v, set, pos) -> sys.puts "itemsReduce v: #{v}, pos: #{pos}"; if !set then v else b = lowestOneBit set; itemsReduceArg values, f, f(v, values[pos], log2 b), set & ~b, pos + 1
+
+shiftAndPrefixFor = (pf1, pf2, resultFunc) ->
+  for shift in [5..30] by 5
+    if (pf1 & ~((1 << shift) - 1)) == (pf2 & ~((1 << shift) - 1))
+      return resultFunc shift, pf1 & ~((1 << shift) - 1)
+  resultFunc 32, 0
 
 exports.AMTLeaf = class AMTLeaf extends BasicAMT
   # shift is always 5
-  constructor: (@prefix, @entries) ->
-  entryCount: -> @entries.reduce ((a, b) -> b.noneSome (-> a), (_) -> a + 1), 0
-  get: (i) -> if (i & ~31) == @prefix then @entries[i & 31] else None
-  putOpt: (i, o) ->
-    return e if (e = @putElsewhere i, o) != null
-    if o.same @entries[i & 31]
-      return this
-    if o.isNone and @entryCount() == 1 then EMPTY else new AMTLeaf @prefix, arraySubst @entries, i & 31, o
-  putMutableOpt: (i, o) ->
-    return e if (e = @putElsewhere i, o) != null
-    @entries[i & 31] = o
-    if @entryCount() == 0 then EMPTY else this
+  constructor: (@prefix, @items) ->
+  get: (i) -> if (i & ~31) == @prefix and (i & @items.bitset) != 0 then Some(itemsGet @items, i) else None
+  mod: (add, i, v) ->
+    if !@inSubtree i then @newSubtree add, i, v
+    else if (add and (itemsHas @items, i) and v == itemsGet @items, i) or (!add and !itemsHas @items, i) then this
+    else if add then new AMTLeaf @prefix, itemsSet @items, i, v
+    else if @items.length == 1 then EMPTY
+    else new AMTLeaf @prefix, itemsRemove @items, i
+  modMutable: (add, i, v) ->
+    return @putInNewSubtree i, v if !@inSubtree i
+    if add
+      @items = itemsSet @entires, i, v
+    else if itemsHas i
+      return EMPTY if @items.length == 1
+      @items = itemsRemove @items, i
+    this
   # maps on the options in entries; f should return an option (allows removal)
-  mapOpt: (f) -> new AMTLeaf @prefix, (f(opt, @prefix | index) for opt, index in @entries)
+  map: (f) -> new AMTLeaf @prefix, itemsMap @items, (v, i) -> f v, @prefix | i
   filter: (f) ->
-    e = ((opt.filter (v) -> f v, @prefix | index) for opt, index in @entries)
-    if (e.reduce ((a, b) -> a + b.map (x) -> 1), 0) == 0 then EMPTY else new AMTLeaf @prefix, e
-  forEach: (f) -> @entries.forEach (vOpt, index) => vOpt.forEach (v) => f(v, @prefix | index)
-  dump: -> "AMTLeaf(#{@prefix} #{(mofor
-    o, i in @entries
-    v in o
-      "#{i | @prefix}: #{v}").join ', '})"
+    newEntries = itemsFilter @items, (v, i) -> f v, @prefix | i
+    if !newEntries.length then EMPTY else if newEntries.length == @items.length then this else new AMTLeaf @prefix, newEntries
+  reduceNoArg: (f) -> itemsReduceRest @items, ((a, v, i) -> f a, v, @prefix | i), @items[0]
+  reduceArg: (f, a) -> itemsReduceRest @items, ((a, v, i) -> f a, v, @prefix | i), f a, @items[0], @prefix | trailingZeroes @items.bitset
+  forEach: (f) -> itemsDo @items, (v, i) -> f v, @prefix | i
+  dump: -> "AMTLeaf(#{@prefix} #{(itemsMap @items, (v, i) => "#{@prefix | i}: #{v}").join ', '})"
+  @for = (i, v) -> new AMTLeaf i & ~31, setBitset [v], 1 << (i & 31)
 
-AMTLeaf.forOpt = (i, v) -> new AMTLeaf i & ~31, pairMap 32, None, [[i & 31, v]]
+exports.AMT = EMPTY = new AMTLeaf -1, []
+EMPTY.mod = (add, i, v) -> if add then AMTLeaf.for i, v else this
+EMPTY.dump = -> "EMPTY"
 
 class AMT extends BasicAMT
-  constructor: (@shift, @prefix, @children) ->
+  constructor: (@shift, @prefix, @items) ->
   childIndex: (i) -> (i >> @shift) & 31
-  childCount: -> @children.reduce ((a, b) -> if b == EMPTY then a else a + 1), 0
-  get: (i) -> if (i & ~((32 << @shift) - 1)) then @children[@childIndex i].get i else None
-  putOpt: (i, o) ->
-    return e if (e = @putElsewhere i, o) != null
+  get: (i) -> if (i & ~((32 << @shift) - 1)) == @prefix then (itemsGet @items, childIndex i).get i else None
+  mod: (add, i, v) ->
+    return @newSubtree add, i, v if !@inSubtree i
     index = @childIndex i
-    oldChild = @children[index]
-    newChild = oldChild.putOpt i, o
-    if newChild is oldChild
-      return this
-    if newChild == EMPTY and @childCount() == 1
-      return EMPTY
-    return new AMT @shift, @prefix, arraySubst(@children, index, newChild)
-  putMutableOpt: (i, o) ->
-    return e if (e = @putElsewhere i, o) != null
+    return this if !add and !itemsHas @items, index
+    oldChild = itemsGet @items, index
+    newChild = oldChild.mod add, i, v
+    return this if newChild is oldChild
+    return EMPTY if newChild == EMPTY and @items.length == 1
+    return new AMT @shift, @prefix, itemsSet @items, index, newChild
+  modMutable: (add, i, v) ->
+    return @newSubtree add, i, v if !@inSubtree i
     index = @childIndex i
-    oldChild = @children[index]
-    newChild = oldChild.putMutableOpt i, o
-    @children[index] = newChild
-    return if @childCount() == 0 then EMPTY else this
-  mapOpt: (f) -> new AMT @shift, @prefix, (v.mapOpt f for v in @children)
+    newChild = (itemsGet @items, index).modMutable add, i, v
+    if newChild is EMPTY
+      itemsRemove @items, index
+    else
+      itemsSet @items, index, newChild
+    return if !@items.length then EMPTY else this
+  map: (f) -> new AMT @shift, @prefix, setBitset (v.map f for v in @items), @items.bitset
   filter: (f) ->
-    c = ((child.filter f) for child in @children)
-    if (c.reduce ((a, b) -> if b == EMPTY then a else a + 1), 0) == 0 then EMPTY else new AMT @shift, @prefix, c
-  forEach: (f) -> @children.forEach (child) -> child.forEach f
-  dump: -> "AMT(#{@prefix}>>#{@shift} #{(c.dump() for c, i in @children when c != EMPTY).join ', '}"
+    c = itemsFilter @items, (v) => (v.filter f) != EMPTY
+    if !c.length then EMPTY else if c.length == 1 then c[0] else if c.length == @items.length then this else AMT @shift, @prefix, c
+  forEach: (f) -> for child in @items
+    child.forEach f
+#  reduceNoArg: (f) -> itemsReduceRest @items, ((a, child) -> child.reduceArg f, a), @items[0].reduceNoArg f
+#  reduceArg: (f, a) -> itemsReduceRest @items, ((a, child) -> child.reduceArg f, a), @items[0].reduceArg f, a
+  reduceNoArg: (f) -> @items[1..].reduce ((a, child) -> child.reduceArg f, a), @items[0].reduceNoArg f
+  reduceArg: (f, a) -> @items[1..].reduce ((a, child) -> child.reduceArg f, a), @items[0].reduceArg f, a
+  dump: -> "AMT(#{@prefix}>>#{@shift} #{(c.dump() for c in @items when c != EMPTY).join ', '}"
+  @for: (ch1, ch2) -> shiftAndPrefixFor ch1.prefix, ch2.prefix, (shift, prefix) -> new AMT shift, prefix, itemsFor ((ch1.prefix >> shift) & 31), ch1, ((ch2.prefix >> shift) & 31), ch2
 
-exports.shiftPrefixFor = shiftPrefixFor = (prefixes, shift = 0, prefix = prefixes[0]) ->
-  if shift == 30 or prefixes.length == 0
-    return [shift, prefix]
-  if prefix == (prefixes[0] & ~((1 << (shift + 5)) - 1))
-    return shiftPrefixFor prefixes[1..], shift, prefix
-  shiftPrefixFor prefixes, shift + 5, prefix & ~((1 << (shift + 10)) - 1)
+# for testing
 
-
-AMT.forChildren = (ch...) -> ([shift, prefix] = shiftPrefixFor (l.prefix for l in ch)); new AMT shift, prefix, pairMap 32, EMPTY, ([(l.prefix >> shift) & 31, l] for l in ch)
+sys=require 'sys'
+exports.shiftAndPrefixFor = shiftAndPrefixFor
+exports.log2 = log2
+exports.countBits = countBits
+exports.AMTPrinter = AMTPrinter

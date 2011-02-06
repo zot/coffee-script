@@ -6,7 +6,7 @@ class Game
   constructor: (@commands = Nil, @pos = None) ->
   print: (msg) -> new Game (Cons "PRINT #{msg}", @commands), @pos
   move: (x, y) -> new Game (Cons "MOVE (#{x}, #{y})", @commands), Some [x, y]
-  reduce: (f, v) -> f(this, this)
+  reduce: (f, v) -> f this, this
   toString: -> "Game: #{(mofor
     [0]
     @commands.reverse()
