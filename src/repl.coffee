@@ -11,12 +11,13 @@ Script       = process.binding('evals').Script
 
 # REPL Setup
 
-# Start by opening up **stdio**.
-stdio = process.openStdin()
+# Start by opening up `stdin` and `stdout`.
+stdin  = process.openStdin()
+stdout = process.stdout
 
 # Log an error.
 error = (err) ->
-  stdio.write (err.stack or err.toString()) + '\n\n'
+  stdout.write (err.stack or err.toString()) + '\n\n'
 
 # The current backlog of multi-line code.
 backlog = ''
@@ -30,8 +31,8 @@ run = (buffer) ->
     return backlog = backlog[0...backlog.length - 1]
   backlog = ''
   try
-    val = CoffeeScript.eval code, bare: on, globals: on, filename: 'repl'
-    console.log val if val isnt undefined
+    val = CoffeeScript.eval buffer.toString(), bare: on, globals: on, filename: 'repl'
+    process.stdout.write val + '\n' if val isnt undefined
   catch err
     error err
   repl.prompt()
@@ -76,9 +77,13 @@ getPropertyNames = (obj) ->
 process.on 'uncaughtException', error
 
 # Create the REPL by listening to **stdin**.
-repl = readline.createInterface stdio, autocomplete
+if readline.createInterface.length < 3
+  repl = readline.createInterface stdin
+  stdin.on 'data', (buffer) -> repl.write buffer
+else
+  repl = readline.createInterface stdin, stdout
+
 repl.setPrompt 'coffee> '
-stdio.on 'data',   (buffer) -> repl.write buffer
-repl.on  'close',  -> stdio.destroy()
+repl.on  'close',  -> stdin.destroy()
 repl.on  'line',   run
 repl.prompt()
