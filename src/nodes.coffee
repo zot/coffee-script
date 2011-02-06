@@ -232,8 +232,7 @@ exports.Expressions = class Expressions extends Base
     o.scope  = new Scope null, this, null
     o.level  = LEVEL_TOP
     code     = @compileWithDeclarations o
-    code     = code.replace TRAILING_WHITESPACE, ''
-    if o.bare then code else "(function() {\n#{code}\n}).call(this);\n"
+    code.replace TRAILING_WHITESPACE, ''
 
   # Compile the expressions body for the contents of a function, with
   # declarations of all inner variables pushed up to the top.
@@ -251,9 +250,9 @@ exports.Expressions = class Expressions extends Base
     {scope} = o
     if scope.expressions is this
       if not o.globals and o.scope.hasDeclarations()
-        code += "#{@tab}var #{ scope.declaredVariables().join(', ') };\n"
+        code += "#{@tab}local #{ scope.declaredVariables().join(', ') };\n"
       if scope.hasAssignments
-        code += "#{@tab}var #{ multident scope.assignedVariables().join(', '), @tab };\n"
+        code += "#{@tab}local #{ multident scope.assignedVariables().join(', '), @tab };\n"
     code + post
 
   # Wrap up the given nodes as an **Expressions**, unless it already happens
@@ -453,6 +452,8 @@ exports.Call = class Call extends Base
       @isNew = true
     this
 
+*** DONE TO THIS POINT ***
+
   # Grab the reference to the superclass's implementation of the current
   # method.
   superReference: (o) ->
@@ -461,9 +462,10 @@ exports.Call = class Call extends Base
     {name} = method
     throw SyntaxError 'cannot call super on an anonymous function.' unless name
     if method.klass
-      "#{method.klass}.__super__.#{name}"
+      "#{method.klass}.__bases[1].#{name}"
     else
       "#{name}.__super__.constructor"
+
 
   # Soaked chained invocations unfold into if/else ternary structures.
   unfoldSoak: (o) ->
