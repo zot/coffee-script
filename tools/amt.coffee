@@ -16,7 +16,7 @@ class BasicAMT
   # if the value fits in the current tree, return null
   # otherwise, return a new subtree, containing the current tree and a new leaf
   inSubtree: (i) -> (i & ~31) == @prefix
-  newSubtree: (add, i, v) -> if add then AMT.for this, AMTLeaf.for i, v else this
+  newSubtree: (add, i, v) -> if !add then this else AMT.for this, AMTLeaf.for i, v
   put: (i, v) -> @mod true, i, v
   remove: (i, v) -> @mod false, i
   # mutable put/remove still return a value, but mutate the tree where possible
@@ -31,7 +31,8 @@ class BasicAMT
 
 class AMTPrinter extends SimpleMonad
   constructor: (@expected, @output) ->
-  print: (i, v) -> sys.puts "i: #{i}, v: #{v}"; new AMTPrinter i + 1, Cons (if i == @expected then v else i + ': ' + v), @output
+#  print: (i, v) -> sys.puts "i: #{i}, v: #{v}"; new AMTPrinter i + 1, Cons (if i == @expected then v else i + ': ' + v), @output
+  print: (i, v) -> new AMTPrinter i + 1, Cons (if i == @expected then v else i + ': ' + v), @output
   toString: -> (mofor
     [0]
     @output.reverse()).join ', '
@@ -54,27 +55,12 @@ countBits = (x) ->
 
 lowestOneBit = (x) -> x & -x
 
-# log2 finds the log base 2 of number known to be a power of 2
-#
-# the contstants look like this in binary
-#
-# 00000000000000001111111111111111
-# 00000000111111110000000011111111
-# 00001111000011110000111100001111
-# 00110011001100110011001100110011
-# 01010101010101010101010101010101
-#
-# They do a binary search for the bit
+MultiplyDeBruijnBitPosition2 = [
+  0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+  31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+]
 
-log2 = (x) ->
-  return 32 if x == 0
-  n = 31
-  n -= 16 if x & 0x0000FFFF
-  n -= 8  if x & 0x00FF00FF
-  n -= 4  if x & 0x0F0F0F0F
-  n -= 2  if x & 0x33333333
-  n -= 1  if x & 0x55555555
-  n
+log2 = (v) -> MultiplyDeBruijnBitPosition2[(v * 0x077CB531) >>> 27]
 
 trailingZeroes = (x) -> log2 x & -x
 
@@ -82,7 +68,7 @@ setBitset = (array, bitset) -> array.bitset = bitset; array
 
 itemsGet = (values, index) -> values[countBits (1 << index) - 1]
 
-itemsFor = (i1, v1, i2, v2) -> if i1 < i2 then setBitset [v1, v2], (1 << i1) | (1 << i2) else itemsFor i2, v2, i1, v1
+itemsFor = (i1, v1, i2, v2) -> sys.puts "itemsFor #{i1} #{i2}"; if i1 <= i2 then setBitset [v1, v2], (1 << i1) | (1 << i2) else itemsFor i2, v2, i1, v1
 
 itemsSet = (values, index, value) ->
   pos = 1 << index
@@ -124,7 +110,9 @@ itemsReduce = (values, f, v) -> itemsReduceArg values, f, v, values.bitset, 0
 
 itemsReduceRest = (values, f, v) -> itemsReduceArg values, f, v, values.bitset & ~(lowestOneBit values.bitset), 1
 
-itemsReduceArg = (values, f, v, set, pos) -> sys.puts "itemsReduce v: #{v}, pos: #{pos}"; if !set then v else b = lowestOneBit set; itemsReduceArg values, f, f(v, values[pos], log2 b), set & ~b, pos + 1
+# itemsReduceArg = (values, f, v, set, pos) -> sys.puts "itemsReduce v: #{v}, pos: #{pos}"; if !set then v else b = lowestOneBit set; itemsReduceArg values, f, f(v, values[pos], log2 b), set & ~b, pos + 1
+
+itemsReduceArg = (values, f, v, set, pos) -> if !set then v else b = lowestOneBit set; itemsReduceArg values, f, f(v, values[pos], log2 b), set & ~b, pos + 1
 
 shiftAndPrefixFor = (pf1, pf2, resultFunc) ->
   for shift in [5..30] by 5
@@ -166,7 +154,7 @@ EMPTY.mod = (add, i, v) -> if add then AMTLeaf.for i, v else this
 EMPTY.dump = -> "EMPTY"
 
 class AMT extends BasicAMT
-  constructor: (@shift, @prefix, @items) ->
+  constructor: (@shift, @prefix, @items) -> sys.puts "AMT #{shift} #{prefix} #{items}"
   childIndex: (i) -> (i >> @shift) & 31
   get: (i) -> if (i & ~((32 << @shift) - 1)) == @prefix then (itemsGet @items, childIndex i).get i else None
   mod: (add, i, v) ->
@@ -198,7 +186,7 @@ class AMT extends BasicAMT
   reduceNoArg: (f) -> @items[1..].reduce ((a, child) -> child.reduceArg f, a), @items[0].reduceNoArg f
   reduceArg: (f, a) -> @items[1..].reduce ((a, child) -> child.reduceArg f, a), @items[0].reduceArg f, a
   dump: -> "AMT(#{@prefix}>>#{@shift} #{(c.dump() for c in @items when c != EMPTY).join ', '}"
-  @for: (ch1, ch2) -> shiftAndPrefixFor ch1.prefix, ch2.prefix, (shift, prefix) -> new AMT shift, prefix, itemsFor ((ch1.prefix >> shift) & 31), ch1, ((ch2.prefix >> shift) & 31), ch2
+  @for: (ch1, ch2) -> sys.puts "AMT.for #{ch1.dump()}, #{ch2.dump()}"; shiftAndPrefixFor ch1.prefix, ch2.prefix, (shift, prefix) -> new AMT shift, prefix, itemsFor ((ch1.prefix >> shift) & 31), ch1, ((ch2.prefix >> shift) & 31), ch2
 
 # for testing
 

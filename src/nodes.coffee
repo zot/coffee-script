@@ -1555,18 +1555,10 @@ exports.Mofor = class Mofor extends Base
     code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_PAREN
     if @monad?
       func = "function(#{@monad.variables}, #{o.scope.freeVariable 'i'}){#{code}}"
-      if containsThis
-        func = "#{utility 'bind'}(#{func}, this)"
+      func = "#{utility 'bind'}(#{func}, this)" if containsThis
       return "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables}.reduce(#{func})"
-#      code = "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables}.reduce(#{func})"
-    if containsThis
-      code = "utility('bind')(function(){#{code}), this)()"
     code
-#    """
-#    #{if @returns then '' else @tab + utility('bind') + '(function(){'}
-#    #{@tab + TAB}#{code}
-#    #{if @returns then '' else @tab + '}, this)()'}
-#    """
+
 
 # MoBind
 # A bind clause in a MoFor
@@ -1620,18 +1612,16 @@ exports.MoBind = class MoBind extends Base
     if @variables[1] == '_'
       @variables[1] = o.scope.freeVariable 'i'
     v = @variables.join ','
-##    if ! @returns
-##      console.log "DOES NOT RETURN\n"
-##      console.log "@expression = #{@expression}\n"
-##    else
-##      console.log "RETURNS: #{this}\n"
+    if @returns
+      console.log "RETURNS: #{this}\n"
+    else
+      console.log "DOES NOT RETURN\n"
+      console.log "@expression = #{@expression}\n"
     expr        = "#{(if !@returns and @expression instanceof Return then @expression.expression else @expression).compile o, LEVEL_PAREN}"
     if @filter
       expr      = "#{expr}.filter(#{@conditionalClosure v, @filter, o, LEVEL_PAREN})"
-    if ! @next
-      return "#{if @returns then 'return ' else ''}#{expr}"
-    else
-      return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure v, @next, o, LEVEL_TOP}#{if @reduce then ', ' + @reduceVar else ''})"
+    return "#{if @returns then 'return ' else ''}#{expr}" if ! @next
+    return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure v, @next, o, LEVEL_TOP}#{if @reduce then ', ' + @reduceVar else ''})"
 
   conditionalClosure: (v, n, o, level) ->
     str = "function(#{if @reduce then @reduceVar + ', ' + v else v}){#{n.compile o, level}}"

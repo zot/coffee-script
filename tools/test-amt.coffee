@@ -21,12 +21,20 @@ sys.puts (AMTLeaf.for 50, 'a').dump()
 sys.puts (AMTLeaf.for 50, 'a').items.bitset
 sys.puts log2 (AMTLeaf.for 50, 'a').items.bitset
 sys.puts EMPTY.put(50, 'a').dump()
-sys.puts EMPTY.put(50, 'a').put(51, 'b').dump()
+sys.puts "1"
 sys.puts EMPTY.put(50, 'a').put(51, 'b').inSubtree 0
+sys.puts "2"
+sys.puts EMPTY.put(50, 'a').put(51, 'b').dump()
+sys.puts "3"
+#EMPTY.put(50, 'a').put(51, 'b').put(0, 23).forEach (i, v) -> sys.puts "#{i}: #{v}"
+c = EMPTY.put(50, 'a').put(51, 'b').put(0, 23)
+sys.puts "4"
+sys.puts c.constructor
+sys.puts "5"
+mofor v, i in EMPTY.put(50, 'a').put(51, 'b').put(0, 23)
+  sys.puts "  #{i}: #{v}"
+sys.puts "6"
 sys.puts EMPTY.put(50, 'a').put(51, 'b').put(0, 23).dump()
-EMPTY.put(50, 'a').put(51, 'b').put(0, 23).forEach (i, v) -> sys.puts "#{i}: #{v}"
-# mofor v, i in EMPTY.put(50, 'a').put(51, 'b').put(0, 23)
-#   sys.puts "  #{i}: #{v}"
 c = e.put(50, 'a').put(51, 'b').put(0, 23).put(1, 33).put(5000, 2)
 sys.puts c
 sys.puts c.map (x) -> "floop - #{x}"
