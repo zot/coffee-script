@@ -1606,17 +1606,17 @@ exports.MoBind = class MoBind extends Base
     @[if @context is 'object' then 'value' else 'variable'].assigns name
 
   compileNode: (o) ->
-    console.log "COMPILE: #{this}\n"
+#    console.log "COMPILE: #{this}\n"
     if @variables[0] == '_'
       @variables[0] = o.scope.freeVariable 'i'
     if @variables[1] == '_'
       @variables[1] = o.scope.freeVariable 'i'
     v = @variables.join ','
-    if @returns
-      console.log "RETURNS: #{this}\n"
-    else
-      console.log "DOES NOT RETURN\n"
-      console.log "@expression = #{@expression}\n"
+#    if @returns
+#      console.log "RETURNS: #{this}\n"
+#    else
+#      console.log "DOES NOT RETURN\n"
+#      console.log "@expression = #{@expression}\n"
     expr        = "#{(if !@returns and @expression instanceof Return then @expression.expression else @expression).compile o, LEVEL_PAREN}"
     if @filter
       expr      = "#{expr}.filter(#{@conditionalClosure v, @filter, o, LEVEL_PAREN})"

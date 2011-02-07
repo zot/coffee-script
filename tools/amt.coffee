@@ -15,7 +15,6 @@ require './util'
 class BasicAMT
   # if the value fits in the current tree, return null
   # otherwise, return a new subtree, containing the current tree and a new leaf
-  inSubtree: (i) -> (i & ~31) == @prefix
   newSubtree: (add, i, v) -> if !add then this else AMT.for this, AMTLeaf.for i, v
   put: (i, v) -> @mod true, i, v
   remove: (i, v) -> @mod false, i
@@ -31,7 +30,6 @@ class BasicAMT
 
 class AMTPrinter extends SimpleMonad
   constructor: (@expected, @output) ->
-#  print: (i, v) -> sys.puts "i: #{i}, v: #{v}"; new AMTPrinter i + 1, Cons (if i == @expected then v else i + ': ' + v), @output
   print: (i, v) -> new AMTPrinter i + 1, Cons (if i == @expected then v else i + ': ' + v), @output
   toString: -> (mofor
     [0]
@@ -66,25 +64,26 @@ trailingZeroes = (x) -> log2 x & -x
 
 setBitset = (array, bitset) -> array.bitset = bitset; array
 
-itemsGet = (values, index) -> values[countBits (1 << index) - 1]
+itemsGet = (values, index) -> values[countBits ((1 << index) - 1) & values.bitset]
 
-itemsFor = (i1, v1, i2, v2) -> sys.puts "itemsFor #{i1} #{i2}"; if i1 <= i2 then setBitset [v1, v2], (1 << i1) | (1 << i2) else itemsFor i2, v2, i1, v1
+itemsFor = (i1, v1, i2, v2) -> if i1 <= i2 then setBitset [v1, v2], (1 << i1) | (1 << i2) else itemsFor i2, v2, i1, v1
 
 itemsSet = (values, index, value) ->
-  pos = 1 << index
-  return arraySubst values, pos, value if pos & values.bitset
+  member = 1 << index
+  pos = countBits (member - 1) & values.bitset
+  return arraySubst values, pos, value if member & values.bitset
   n = values[0...values.length]
-  n.splice((countBits values.bitset & (pos - 1)), 0, value)
-  setBitset n, values.bitset | pos
+  n.splice pos, 0, value
+  setBitset n, values.bitset | member
 
 itemsHas = (values, index) -> values.bitset & (1 << index)
 
 itemsRemove = (values, index) ->
-  pos = 1 << index
-  return values if !(pos & values.bitset)
+  member = 1 << index
+  return values if !(member & values.bitset)
   n = values[0...values.length]
-  n.splice((countBits values.bitset & (pos - 1)), 1)
-  setBitset n, values.bitset & ~pos
+  n.splice countBits values.bitset & (member - 1), 1
+  setBitset n, values.bitset & ~member
 
 itemsDo = (values, f) ->
   set = values.bitset
@@ -110,8 +109,6 @@ itemsReduce = (values, f, v) -> itemsReduceArg values, f, v, values.bitset, 0
 
 itemsReduceRest = (values, f, v) -> itemsReduceArg values, f, v, values.bitset & ~(lowestOneBit values.bitset), 1
 
-# itemsReduceArg = (values, f, v, set, pos) -> sys.puts "itemsReduce v: #{v}, pos: #{pos}"; if !set then v else b = lowestOneBit set; itemsReduceArg values, f, f(v, values[pos], log2 b), set & ~b, pos + 1
-
 itemsReduceArg = (values, f, v, set, pos) -> if !set then v else b = lowestOneBit set; itemsReduceArg values, f, f(v, values[pos], log2 b), set & ~b, pos + 1
 
 shiftAndPrefixFor = (pf1, pf2, resultFunc) ->
@@ -123,6 +120,7 @@ shiftAndPrefixFor = (pf1, pf2, resultFunc) ->
 exports.AMTLeaf = class AMTLeaf extends BasicAMT
   # shift is always 5
   constructor: (@prefix, @items) ->
+  inSubtree: (i) -> (i & ~31) == @prefix
   get: (i) -> if (i & ~31) == @prefix and (i & @items.bitset) != 0 then Some(itemsGet @items, i) else None
   mod: (add, i, v) ->
     if !@inSubtree i then @newSubtree add, i, v
@@ -139,13 +137,13 @@ exports.AMTLeaf = class AMTLeaf extends BasicAMT
       @items = itemsRemove @items, i
     this
   # maps on the options in entries; f should return an option (allows removal)
-  map: (f) -> new AMTLeaf @prefix, itemsMap @items, (v, i) -> f v, @prefix | i
+  map: (f) -> new AMTLeaf @prefix, itemsMap @items, (v, i) => f v, @prefix | i
   filter: (f) ->
-    newEntries = itemsFilter @items, (v, i) -> f v, @prefix | i
+    newEntries = itemsFilter @items, (v, i) => f v, @prefix | i
     if !newEntries.length then EMPTY else if newEntries.length == @items.length then this else new AMTLeaf @prefix, newEntries
-  reduceNoArg: (f) -> itemsReduceRest @items, ((a, v, i) -> f a, v, @prefix | i), @items[0]
-  reduceArg: (f, a) -> itemsReduceRest @items, ((a, v, i) -> f a, v, @prefix | i), f a, @items[0], @prefix | trailingZeroes @items.bitset
-  forEach: (f) -> itemsDo @items, (v, i) -> f v, @prefix | i
+  reduceNoArg: (f) -> itemsReduceRest @items, ((a, v, i) => f a, v, @prefix | i), @items[0]
+  reduceArg: (f, a) -> itemsReduceRest @items, ((a, v, i) => f a, v, @prefix | i), f a, @items[0], @prefix | trailingZeroes @items.bitset
+  forEach: (f) -> itemsDo @items, (v, i) => f v, @prefix | i
   dump: -> "AMTLeaf(#{@prefix} #{(itemsMap @items, (v, i) => "#{@prefix | i}: #{v}").join ', '})"
   @for = (i, v) -> new AMTLeaf i & ~31, setBitset [v], 1 << (i & 31)
 
@@ -154,17 +152,22 @@ EMPTY.mod = (add, i, v) -> if add then AMTLeaf.for i, v else this
 EMPTY.dump = -> "EMPTY"
 
 class AMT extends BasicAMT
-  constructor: (@shift, @prefix, @items) -> sys.puts "AMT #{shift} #{prefix} #{items}"
-  childIndex: (i) -> (i >> @shift) & 31
-  get: (i) -> if (i & ~((32 << @shift) - 1)) == @prefix then (itemsGet @items, childIndex i).get i else None
+  constructor: (@shift, @prefix, @items) ->
+  inSubtree: (i) -> (i & ~((1 << @shift) - 1)) == @prefix
+  childIndex: (i) -> (i >> @shift - 5) & 31
+  get: (i) -> if @inSubtree i then (itemsGet @items, childIndex i).get i else None
   mod: (add, i, v) ->
     return @newSubtree add, i, v if !@inSubtree i
     index = @childIndex i
-    return this if !add and !itemsHas @items, index
-    oldChild = itemsGet @items, index
-    newChild = oldChild.mod add, i, v
-    return this if newChild is oldChild
-    return EMPTY if newChild == EMPTY and @items.length == 1
+    has = itemsHas @items, index
+    return this if !add and !has
+    if !has
+      newChild = AMTLeaf.for i, v
+    else
+      oldChild = itemsGet @items, index
+      newChild = oldChild.mod add, i, v
+      return @items[(countBits @items.bitSet & (1 << index) - 1) * -2 + 1] if newChild == EMPTY and @items.length == 2
+      return this if newChild is oldChild
     return new AMT @shift, @prefix, itemsSet @items, index, newChild
   modMutable: (add, i, v) ->
     return @newSubtree add, i, v if !@inSubtree i
@@ -181,12 +184,10 @@ class AMT extends BasicAMT
     if !c.length then EMPTY else if c.length == 1 then c[0] else if c.length == @items.length then this else AMT @shift, @prefix, c
   forEach: (f) -> for child in @items
     child.forEach f
-#  reduceNoArg: (f) -> itemsReduceRest @items, ((a, child) -> child.reduceArg f, a), @items[0].reduceNoArg f
-#  reduceArg: (f, a) -> itemsReduceRest @items, ((a, child) -> child.reduceArg f, a), @items[0].reduceArg f, a
   reduceNoArg: (f) -> @items[1..].reduce ((a, child) -> child.reduceArg f, a), @items[0].reduceNoArg f
   reduceArg: (f, a) -> @items[1..].reduce ((a, child) -> child.reduceArg f, a), @items[0].reduceArg f, a
-  dump: -> "AMT(#{@prefix}>>#{@shift} #{(c.dump() for c in @items when c != EMPTY).join ', '}"
-  @for: (ch1, ch2) -> sys.puts "AMT.for #{ch1.dump()}, #{ch2.dump()}"; shiftAndPrefixFor ch1.prefix, ch2.prefix, (shift, prefix) -> new AMT shift, prefix, itemsFor ((ch1.prefix >> shift) & 31), ch1, ((ch2.prefix >> shift) & 31), ch2
+  dump: -> "AMT(#{@prefix}>>#{@shift} #{(c.dump() for c in @items when c != EMPTY).join ', '})"
+  @for: (ch1, ch2) -> shiftAndPrefixFor ch1.prefix, ch2.prefix, (shift, prefix) -> new AMT shift, prefix, itemsFor (ch1.prefix >> shift - 5) & 31, ch1, (ch2.prefix >> shift - 5) & 31, ch2
 
 # for testing
 
