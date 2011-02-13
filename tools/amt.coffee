@@ -1,7 +1,7 @@
-# Array mapped tree -- high-to-low shifting, to preserve order
-# Very much like an array mapped trie, but the data is all at the leaves and there is path compression
-# TODO: compress entries/children using popct and a bitmap for presence -- this would remove the need for EmptyAMT
-# TODO: next, combine prefix and shift
+# AMT (Array Mapped Tree) -- high-to-low shifting, to preserve order
+# Very much like an array mapped trie, but this isn't a trie; the data is all in leaf nodes
+# It supports path compression so that there won't be any inner nodes with only one child (single children "bubble up")
+# TODO: combine prefix and shift?
 
 {Some, None} = require './option'
 {Cons, Nil} = require './list'
@@ -17,7 +17,7 @@ class BasicAMT
   # otherwise, return a new subtree, containing the current tree and a new leaf
   newSubtree: (add, i, v) -> if !add then this else AMT.for this, AMTLeaf.for i, v
   put: (i, v) -> @mod true, i, v
-  remove: (i, v) -> @mod false, i
+  remove: (i) -> @mod false, i
   # mutable put/remove still return a value, but mutate the tree where possible
   putMutable: (i, v) -> @modMutable true, i, v
   removeMutable: (i, v) -> @modMutable false, i
@@ -47,8 +47,8 @@ exports.arraySubst = arraySubst = (a, i, v) ->
 
 countBits = (x) ->
   # from http://bits.stephan-brumme.com/countBits.html
-  x  = x - ((x >>> 1) & 0x55555555)
-  x  = (x & 0x33333333) + ((x >>> 2) & 0x33333333)
+  x -= (x >>> 1) & 0x55555555
+  x = (x & 0x33333333) + ((x >>> 2) & 0x33333333)
   (((x + (x >>> 4)) & 0xF0F0F0F) * 0x01010101) >>> 24
 
 lowestOneBit = (x) -> x & -x
@@ -121,10 +121,10 @@ exports.AMTLeaf = class AMTLeaf extends BasicAMT
   # shift is always 5
   constructor: (@prefix, @items) ->
   inSubtree: (i) -> (i & ~31) == @prefix
-  get: (i) -> if (i & ~31) == @prefix and (i & @items.bitset) != 0 then Some(itemsGet @items, i) else None
+  get: (i) -> if (i & ~31) == @prefix and !(i & @items.bitset) then Some(itemsGet @items, i) else None
   mod: (add, i, v) ->
     if !@inSubtree i then @newSubtree add, i, v
-    else if (add and (itemsHas @items, i) and v == itemsGet @items, i) or (!add and !itemsHas @items, i) then this
+    else if add == (itemsHas @items, i) and (!add or v == itemsGet @items, i) then this
     else if add then new AMTLeaf @prefix, itemsSet @items, i, v
     else if @items.length == 1 then EMPTY
     else new AMTLeaf @prefix, itemsRemove @items, i
@@ -155,7 +155,7 @@ class AMT extends BasicAMT
   constructor: (@shift, @prefix, @items) ->
   inSubtree: (i) -> (i & ~((1 << @shift) - 1)) == @prefix
   childIndex: (i) -> (i >> @shift - 5) & 31
-  get: (i) -> if @inSubtree i then (itemsGet @items, childIndex i).get i else None
+  get: (i) -> if @inSubtree i then (itemsGet @items, @childIndex i).get i else None
   mod: (add, i, v) ->
     return @newSubtree add, i, v if !@inSubtree i
     index = @childIndex i

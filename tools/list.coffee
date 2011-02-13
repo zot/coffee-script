@@ -9,6 +9,7 @@ exports.Nil = Nil =
   append: (l) -> l
   reduce: (f, v) -> v
   reverse: (r) -> r
+  join: (sep) -> ""
 
 class Cons
   constructor: (@car, @cdr) ->
@@ -19,9 +20,10 @@ class Cons
   append: (l) -> new Cons @car, @cdr.append l
   reduce: (f, v) -> @cdr.reduce f, (f v, @car)
   reverse: (r = Nil) -> @cdr.reverse new Cons @car, r
-  toString: -> "List(#{(mofor
+  toString: -> "List(#{@join ', '})"
+  join: (sep) -> (mofor
     [0]
-    this).join ', '})"
+    this).join sep
 
 exports.List = List = (items...) -> ListOf(items, 0)
 

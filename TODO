@@ -1,10 +1,24 @@
+Bugs   
+
+* mofor-do with filter needs to continue reducing
+
+mofor game in
+  game.fred()
+  if game.yellow
+  game.maluba()
+
+currently does a forEach on the filtered results.  Needs to do a
+   reduce, instead
+
+Features
+
 * functional version of coffeescript
 
 * multiple assignment to a variable is an error
 
 * properties can only be assigned in a constructor (and only once)
 
-* "safe" version of for-loop for mapping:
+* "safe" version of for-loop for mapping, so i can't really change?:
 
       a = for i in x
         ...

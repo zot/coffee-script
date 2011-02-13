@@ -2,6 +2,14 @@ require './util'
 sys = require 'sys'
 {AMTPrinter, log2, countBits, shiftAndPrefixFor, AMT, AMTLeaf} = require './amt'
 {Nil} = require './list'
+assertEq = (expected, actual, msg) ->
+  if expected != actual
+    sys.puts "Error #{msg}: expected <#{expected}>, but got <#{actual}>"
+
+# tests
+assertEq 'a', EMPTY.put(626045324, 'a').get(626045324)
+
+# old verification code
 e = EMPTY = AMT
 sys.puts "bit counting"
 for nums in [[0..15], -v for v in [0..15]]
