@@ -1612,12 +1612,12 @@ exports.MoBind = class MoBind extends Base
     v = @variables.join ','
     expr        = "#{(if !@returns and @expression instanceof Return then @expression.expression else @expression).compile o, LEVEL_PAREN}"
     if @filter
-      expr      = "#{expr}.filter(#{@conditionalClosure v, @filter, o, LEVEL_PAREN})"
+      expr      = "#{expr}.filter(#{@conditionalClosure false, v, @filter, o, LEVEL_PAREN})"
     return "#{if @returns then 'return ' else ''}#{expr}" if ! @next
-    return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure v, @next, o, LEVEL_TOP}#{if @reduce then ', ' + @reduceVar else ''})"
+    return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure @reduce, v, @next, o, LEVEL_TOP}#{if @reduce then ', ' + @reduceVar else ''})"
 
-  conditionalClosure: (v, n, o, level) ->
-    str = "function(#{if @reduce then @reduceVar + ', ' + v else v}){#{n.compile o, level}}"
+  conditionalClosure: (reduce, v, n, o, level) ->
+    str = "function(#{if reduce then @reduceVar + ', ' + v else v}){#{n.compile o, level}}"
     if (n.contains Closure.literalThis) then "#{utility 'bind'}(#{str}, this)" else str
 
 

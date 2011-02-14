@@ -17,6 +17,8 @@ sys.puts (mofor game in new Game() do
   mofor do
     x in [1,2,3,4,5]
     y in [1,2,3,4,5]
+    if ((x + y) % 3) == 0
+    game.print "X = #{x}, Y = #{y}, X + Y % 3 = #{(x + y) % 3}"
     game.move x, y
     p in game.pos
     game.print "MOVED TO: #{p[0]}, #{p[1]}"

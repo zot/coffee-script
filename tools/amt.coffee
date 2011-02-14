@@ -31,11 +31,11 @@ MultiplyDeBruijnBitPosition = [
 ]
 
 log2 = (v) ->
-  v |= v >> 1 # first round down to one less than a power of 2
-  v |= v >> 2
-  v |= v >> 4
-  v |= v >> 8
-  v |= v >> 16
+  v |= v >>> 1 # first round down to one less than a power of 2
+  v |= v >>> 2
+  v |= v >>> 4
+  v |= v >>> 8
+  v |= v >>> 16
   MultiplyDeBruijnBitPosition[(v * 0x07C4ACDD) >>> 27]
 
 MultiplyDeBruijnBitPosition2 = [
@@ -48,7 +48,6 @@ evenLog2 = (v) -> MultiplyDeBruijnBitPosition2[(v * 0x077CB531) >>> 27]
 trailingZeroes = (x) -> evenLog2 x & -x
 
 exports.n2 = nextPowerOf2 = (v) ->
-  v--
   v |= v >>> 1
   v |= v >>> 2
   v |= v >>> 4
@@ -113,7 +112,7 @@ itemsReduceArg = (values, f, v, set, pos) -> if !set then v else b = lowestOneBi
 exports.itemsAdd = itemsAdd = (items, v) ->
   i = items[...items.length]
   i.splice i.length, 0, v
-  setBitset i, items.bitset | (nextPowerOf2 items.bitset + 1)
+  setBitset i, items.bitset | (nextPowerOf2 items.bitset)
 
 #shiftAndPrefixFor = (pf1, pf2, resultFunc) ->
 #  for shift in [5..30] by 5
@@ -161,7 +160,7 @@ exports.AMTLeaf = class AMTLeaf extends BasicAMT
     else if add then new AMTLeaf @prefix, itemsSet @items, i, v
     else if @items.length == 1 then EMPTY
     else new AMTLeaf @prefix, itemsRemove @items, i
-  subadd: (v) -> if @items.bitset & 0x80000000 then null else new AMTLeaf @prefix, itemsAdd @items, v
+  subadd: (v) -> if @items.bitset < 0 then null else new AMTLeaf @prefix, itemsAdd @items, v
   # maps on the options in entries; f should return an option (allows removal)
   map: (f) -> new AMTLeaf @prefix, itemsMap @items, (v, i) => f v, @prefix | i
   filter: (f) ->
@@ -172,7 +171,7 @@ exports.AMTLeaf = class AMTLeaf extends BasicAMT
   forEach: (f) -> itemsDo @items, (v, i) => f v, @prefix | i
   dump: -> "AMTLeaf(#{@prefix}|#{@items.bitset.toString(2)} #{(itemsMap @items, (v, i) => "#{@prefix | i}|#{i}: #{v}").join ', '})"
 #  @for = (i, v) -> sys.puts "Leaf for, i: #{i & 31}"; new AMTLeaf i & ~31, setBitset [v], 1 << (i & 31)
-  @for = (i, v) -> new AMTLeaf i & ~31, setBitset [v], 1 << (i & 31)
+  @for = (i, v) -> new AMTLeaf i & ~31, setBitset [v], 1 << i
 
 exports.AMT = EMPTY = new AMTLeaf -1, setBitset [], 0
 EMPTY.mod = (add, i, v) -> if add then AMTLeaf.for i, v else this
@@ -182,7 +181,7 @@ EMPTY.add = (v) -> AMTLeaf.for 0, v
 class AMT extends BasicAMT
   constructor: (@shift, @prefix, @items) ->
   inSubtree: (i) -> @shift == 35 or (i & ~((1 << @shift) - 1)) == @prefix
-  childIndex: (i) -> (i >>> @shift - 5) & 31
+  childIndex: (i) -> i >>> @shift - 5
 #  get: (i) -> if @inSubtree i and itemsHas @items, (ind = @childIndex i) then sys.puts "#{i} in subtree, index = #{ind}, bitset = #{@items.bitset.toString(2)}, prefix = #{@prefix}"; (itemsGet @items, ind).get i else sys.puts "#{i} not in subtree"; None
   get: (i) -> if @inSubtree i and itemsHas @items, (ind = @childIndex i) then (itemsGet @items, ind).get i else None
   mod: (add, i, v) ->
@@ -199,9 +198,9 @@ class AMT extends BasicAMT
       return this if newChild is oldChild
     return new AMT @shift, @prefix, itemsSet @items, index, newChild
   subadd: (v) ->
-    if c = @items[@items.length - 1].add v then new AMT @shift, @prefix, itemsSetLast @items, c
-    else if @items.bitset & 0x80000000 then null
-    else @put @prefix | ((evenLog2 nextPowerOf2 @items.bitset + 1) << (shift - 5)), v
+    if c = @items[@items.length - 1].subadd v then new AMT @shift, @prefix, itemsSetLast @items, c
+    else if @items.bitset < 0 then null
+    else @put @prefix | ((evenLog2 nextPowerOf2 @items.bitset) << (shift - 5)), v
   map: (f) -> new AMT @shift, @prefix, setBitset (v.map f for v in @items), @items.bitset
   filter: (f) ->
     c = itemsFilter @items, (v) => (v.filter f) != EMPTY
