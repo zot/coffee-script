@@ -27,22 +27,31 @@ exports.HAMT = class HAMT
   constructor: (@hash = hashFunc, @eq = ((a, b) -> a == b), @amt = AMT) ->
   put: (key, value) -> new HAMT(@hash, @eq, @amt.put @hash(key), (@amt.get(@hash(key)).noneSome (->[[key, value]]), ((v) -> addValue(v, [key, value], @eq))))
   get: (key) ->
-    sys.puts "pairs = #{@amt.get @hash key}, hash = #{@hash key}, amt = #{@amt.dump()}"
+#    sys.puts "hash = #{@hash key}, amt = #{@amt.dump()}"
     mofor
       pairs in (@amt.get @hash key)
       p in pairs.find((x) => @eq x[0], key)
         p[1]
   remove: (key) ->
     hash = @hash key
-    @amt.get(hash).noneSome (=> sys.puts 'none'; this), (pairs) =>
-      sys.puts 'some'
+#    @amt.get(hash).noneSome (=> sys.puts 'none'; this), (pairs) =>
+    @amt.get(hash).noneSome (=> this), (pairs) =>
+#      sys.puts 'some'
       i = pairs.find (item) => @eq item[0], key
       if i == -1
-        sys.puts 'not found'
+#        sys.puts 'not found'
         return this
-      new HAMT(@hash, @eq, if v.length == 1 then sys.puts 'with'; @amt.remove(hash) else sys.puts 'without'; @amt.put(hash, v.without(i)))
+#      new HAMT(@hash, @eq, if v.length == 1 then sys.puts 'with'; @amt.remove(hash) else sys.puts 'without'; @amt.put(hash, v.without(i)))
+      new HAMT(@hash, @eq, if v.length == 1 then @amt.remove(hash) else @amt.put(hash, v.without(i)))
   toString: -> "HAMT(#{@contents()})"
   dump: -> "HAMT(#{@amt.dump()})"
-  contents: -> ([0].flatMap (x) => @amt.flatMap (p) -> p.map (v) -> "#{v[0]}: #{v[1]}").join ', '
+  contents: ->
+#    ([0].flatMap (x) => @amt.flatMap (pairs) -> pairs.map (pair) -> "#{pair[0]}: #{pair[1]}").join ', '
+    (mofor
+      _ in [0]
+      pairs in @amt
+      pair in pairs
+        "#{pair[0]}: #{pair[1]}").join ', '
+
 
 sys=require 'sys'

@@ -1588,13 +1588,11 @@ exports.MoBind = class MoBind extends Base
         if !body and slice.length == 1
           body = slice[0].expression.body
       slice = slice[1...slice.length]
-    if slice.length == 0
+    if @last = slice.length == 0
       @next = body
-      @last = true
     else
       @next = slice[0]
-      @last = !@next.link slice[1...slice.length], body
-    @last
+      @next.link slice[1...slice.length], body
 
   last: NO
 

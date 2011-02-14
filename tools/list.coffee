@@ -10,6 +10,7 @@ exports.Nil = Nil =
   reduce: (f, v) -> v
   reverse: (r) -> r
   join: (sep) -> ""
+  equals: (x) -> x == Nil
 
 class Cons
   constructor: (@car, @cdr) ->

@@ -2,7 +2,7 @@
 exports.None = None =
   isNone: true
 
-  same: (o) -> o == this
+  equals: (o) -> o == this
 
   length: 0
 
@@ -28,7 +28,7 @@ class Some
 
   isNone: false
 
-  same: (o) -> o instanceof Some and o.has this[0]
+  equals: (o) -> o instanceof Some and o.has this[0]
 
   has: (v) -> this[0] is v
 
