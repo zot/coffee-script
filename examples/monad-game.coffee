@@ -4,6 +4,7 @@ sys=require 'sys'
 
 class Game
   constructor: (@commands = Nil, @pos = None) ->
+  Return: (x) -> new Game (Cons "RETURN #{x}", @commands)
   print: (msg) -> new Game (Cons "PRINT #{msg}", @commands), @pos
   move: (x, y) -> new Game (Cons "MOVE (#{x}, #{y})", @commands), Some [x, y]
   reduce: (f, v) -> f this, this
@@ -22,4 +23,5 @@ sys.puts (mofor game in new Game() do
     game.move x, y
     p in game.pos
     game.print "MOVED TO: #{p[0]}, #{p[1]}"
-  game.print "Done moving ship")
+  game.print "Done moving ship"
+    17)
