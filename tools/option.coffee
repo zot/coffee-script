@@ -63,4 +63,10 @@ Array.prototype.find = (f) ->
       return new Some(i)
   return None
 
+Array.prototype.findIndex = (f) ->
+  for v, i in this
+    if f(v, i)
+      return new Some(i)
+  return None
+
 exports.Some = (x) -> new Some(x)
