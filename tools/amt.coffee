@@ -127,9 +127,9 @@ class BasicAMT
   add: (v) -> if t = @subadd v or this instanceof AMTLeaf or this.shift == 35 then t else @put @prefix | (((log2 @items.bitset) + 1) << (shift - 5)), v
   flatMap: (f) -> @reduce ((tree, item, index) -> (f item, index).reduce ((tree, item) -> tree.add item), tree), EMPTY
   reduce: (f, a...) -> if a.length then @reduceArg f, a[0] else @reduceNoArg f
-  toString: -> "AMT(" + (mofor acc in state((n: 0, str: Nil), (s, i, v) -> n: i + 1, str: Cons((if i == s.n then v else i + ': ' + v), s.str)) do
+  toString: -> "AMT(#{(mofor acc in state((n: 0, str: Nil), (s, i, v) -> n: i + 1, str: Cons((if i == s.n then v else i + ': ' + v), s.str)) do
     v, i in this
-    acc.f i, v).state.str.reverse().join(', ') + ")"
+    acc.f i, v).state.str.reverse().join(', ')})"
 
 
 exports.AMTLeaf = class AMTLeaf extends BasicAMT

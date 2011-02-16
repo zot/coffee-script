@@ -1539,7 +1539,8 @@ exports.Mofor = class Mofor extends Base
     @firstClause.link clauses[1...clauses.length], if body then Expressions.wrap [body] else null
     @returns = false
     if @monad?
-      @firstClause.useReduce(@monad.variables)
+      @firstClause.monad = monad
+      @firstClause.useReduce(monad.variables)
       @firstClause.makeReturn()
 
   children: ['firstClause']
@@ -1553,11 +1554,15 @@ exports.Mofor = class Mofor extends Base
 
   compileNode: (o) ->
     containsThis = @firstClause.contains Closure.literalThis
-    code = @firstClause.compile merge(o, indent: @tab + TAB), LEVEL_PAREN
-    if @monad?
-      func = "function(#{@monad.variables}, #{o.scope.freeVariable 'i'}){#{code}}"
-      func = "#{utility 'bind'}(#{func}, this)" if containsThis
-      return "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables}.reduce(#{func})"
+    if @monad?.expression?
+      o.scope.add @monad.variables[0], 'var'
+      code = "#{o.indent}#{@monad.variables} = #{@monad.expression.compile o, LEVEL_PAREN}\n#{o.indent}#{@firstClause.compile merge(o, indent: @tab + TAB), LEVEL_TOP}"
+    else
+      code = "#{o.indent}#{@firstClause.compile merge(o, indent: @tab + TAB), LEVEL_TOP}"
+#    if @monad?
+#      func = "function(#{@monad.variables}, #{o.scope.freeVariable 'i'}){#{code}}"
+#      func = "#{utility 'bind'}(#{func}, this)" if containsThis
+#      return "return #{if @monad.expression? then (@monad.expression.compile o, LEVEL_PAREN) else @monad.variables}.reduce(#{func})"
     code
 
 
@@ -1614,8 +1619,8 @@ exports.MoBind = class MoBind extends Base
     if @filter
       expr      = "#{expr}.filter(#{@conditionalClosure false, v, @filter, (@filter.compile o, LEVEL_PAREN)})"
     return "#{if @returns then 'return ' else ''}#{expr}" if ! @next
-    moUnit = @reduce and !(@next instanceof MoBind)
-    return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if moUnit then 'unit' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure @reduce, v, @next, @next.compile o, LEVEL_TOP}#{if moUnit then '()' else if @reduce then ', ' + @reduceVar else ''})"
+    moMap = @reduce and !(@next instanceof MoBind)
+    return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if moMap then 'map' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure @reduce, v, @next, @next.compile o, LEVEL_TOP}#{if moMap then '()' else if @reduce then ', ' + @reduceVar else ''})"
 
   conditionalClosure: (reduce, v, n, code) ->
     str = "function(#{if reduce then @reduceVar + ', ' + v else v}){#{code}}"
