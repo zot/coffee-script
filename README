@@ -103,6 +103,7 @@ Here is an example that uses a monad to track the movement of a ship across [1,1
 	 p in game.pos
 	 game.print "MOVED TO: #{p[0]}, #{p[1]}"
        game.put "Done moving ship"
+       	 17
 
 which translates to this:
 
@@ -119,10 +120,11 @@ which translates to this:
 	  ), game
 	), game
       ), game).reduce ((game, _i5) ->
-        game.put "Done moving ship"
+        (game.put "Done moving ship").map (_i6) -> 17
       ), game
     ), game
-  ), null
+  )
+
 
 TODO
 Handle destructuring assignment with MoBind:
