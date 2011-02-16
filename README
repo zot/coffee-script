@@ -108,19 +108,19 @@ Here is an example that uses a monad to track the movement of a ship across [1,1
 which translates to this:
 
   currentGame.reduce ((game, _i1) ->
-    (game.put "Moving ship").reduce ((game) ->
-      (game.reduce ((game, _i2) ->
-        [1,2,3,4,5].reduce ((game, _i3) ->
-  	  [1,2,3,4,5].reduce ((game, _i4) ->
-	    game.moveShip x, y.reduce ((game, _i5) ->
-	      game.pos.reduce ((game, _i6) ->
+    (game.put "Moving ship").reduce ((game, _i2) ->
+      (game.reduce ((game, _i3) ->
+        [1,2,3,4,5].reduce ((game, _i4) ->
+  	  [1,2,3,4,5].reduce ((game, _i5) ->
+	    game.moveShip x, y.reduce ((game, _i6) ->
+	      game.pos.reduce ((game, _i7) ->
 	        game.print "MOVED TO: #{p[0]}, #{p[1]}"
 	      ), game
 	    ), game
 	  ), game
 	), game
       ), game).reduce ((game, _i5) ->
-        (game.put "Done moving ship").map (_i6) -> 17
+        (game.put "Done moving ship").unit(17)
       ), game
     ), game
   )
