@@ -18,6 +18,8 @@ class exports.Rewriter
   # like this. The order of these passes matters -- indentation must be
   # corrected before implicit parentheses can be wrapped around blocks of code.
   rewrite: (@tokens) ->
+#    console.log (t[0] + '/' + t[1] for t in @tokens).join ' '
+    @findMoforDos()
     @removeLeadingNewlines()
     @removeMidExpressionNewlines()
     @closeOpenCalls()
@@ -29,7 +31,6 @@ class exports.Rewriter
     @ensureBalance BALANCED_PAIRS
     @rewriteClosingParens()
     @rewriteMoforBindings()
-#    console.log (t[0] + '/' + t[1] for t in @tokens).join ' '
     @tokens
 
   # Rewrite the token stream, looking one token ahead and behind.
@@ -127,53 +128,64 @@ class exports.Rewriter
       @detectEnd i + 2, condition, action
       2
 
-  rewriteMoforBindings: ->
+  findMoforDos: ->
     mostart = 0
-    inMofor = 0
-    firstLine = false
-    was = false
+    onMoforLine = false
     @scanTokens (token, i, tokens) ->
-      if inMofor and token[1] is 'in'
+      if onMoforLine and (token[0] is 'TERMINATOR' or token[0] is 'INDENT')
+        onMoforLine = false
+        if tokens[i - 1][1] is 'do'
+          tok = ['MONADDO', 'do', token[2]]
+          tok.generated = yes
+          tokens.splice i - 1, 1, tok
+          return 0
+      if !onMoforLine and token[0] is 'MOFOR'
+        onMoforLine = true
+        mostart = i
+      1
+
+  rewriteMoforBindings: ->
+    inMofor = false
+    firstLine = false
+    mostart = 0
+    moforLevel = 0
+    mostack = []
+    @scanTokens (token, i, tokens) ->
+      if token[0] is 'MOFOR'
+        mostack.push inMofor: inMofor, firstLine: firstLine, mostart: mostart, moforLevel: moforLevel
+        inMofor = true
+        firstLine = true
+        mostart = i
+        moforLevel = 1
+      else if moforLevel and token[0] is 'INDENT'
+        moforLevel++
+        inMofor = moforLevel < 4
+      else if moforLevel and (token[0] is 'OUTDENT' or (moforLevel == 1 and token[0] is 'TERMINATOR'))
+        moforLevel--
+        inMofor = moforLevel < 4
+        if moforLevel < 1
+          {inMofor, firstLine, mostart, moforLevel} = mostack.pop()
+      else if inMofor and token[1] is 'in' and i > 3 and tokens[i - 1][0] is 'IDENTIFIER' and (tokens[i - 2][0] is 'MOFOR' or tokens[i - 2][0] is 'TERMINATOR' or tokens[i - 2][0] is 'INDENT' or (tokens[i - 2][0] is ',' and tokens[i - 3][0] is 'IDENTIFIER' and tokens[i - 4][0] is 'INDENT'))
         tok = ['MOFORIN', 'in', token[2]]
         tok.generated = yes
         tokens.splice i, 1, tok
       else if inMofor and firstLine and (token[0] is 'TERMINATOR' or token[0] is 'INDENT')
         firstLine = false
-      else if inMofor and firstLine and token[0] is 'CALL_START' and tokens[i + 3]? and tokens[i + 1][1] is 'do' and tokens[i + 2][0] is 'CALL_END' and tokens[i + 3][0] is 'INDENT'
-        if tokens[i - 1][0] is 'IDENTIFIER' and tokens[i - 2][0] is 'MOFOR'
+      else if inMofor and token[0] is 'MONADDO'
+        if i > 1 and tokens[i - 1][0] is 'IDENTIFIER' and tokens[i - 2][0] is 'MOFOR'
           tok = ['MONADIDENT', tokens[i - 1][1], token[2]]
           tok.generated = yes
-          tokens.splice i - 1, 4, tok
+          tokens.splice i - 1, 2, tok
           return 0
-        if tokens[i - 1][0] is 'MOFOR'
-          tok = ['MONADIDENT', '', token[2]]
-          tok.generated = yes
-          tokens.splice i, 3, tok
-          return 0
-        tok = ['MONADDO', 'do', token[2]]
-        tok.generated = yes
-        tokens.splice i, 3, tok
-      else if inMofor and firstLine and token[1] is 'do' and tokens[i - 1][0] is 'MOFOR'
-        if tokens[i - 1][0] is 'MOFOR'
+        else if i > 0 and tokens[i - 1][0] is 'MOFOR'
           tok = ['MONADIDENT', '', token[2]]
           tok.generated = yes
           tokens.splice i, 1, tok
           return 0
-      else if inMofor and firstLine and token[1] is 'do' and tokens[i + 2]? and tokens[i + 1][0] is 'CALL_END' and tokens[i + 2][0] is 'INDENT'
-        tok = ['MONADDO', 'do', token[2]]
-        tok.generated = yes
-        tokens.splice i, 2, tokens[i + 1], tok
-      else if inMofor and token[0] is 'INDENT'
-        inMofor++
-        if inMofor > 2
-          inMofor = 0
-      else if token[0] is 'MOFOR'
-        inMofor = 1
-        firstLine = true
-        mostart = i
-      else if inMofor and token[0] is 'OUTDENT'
-        inMofor = 0
+        else if i + 2 < tokens.length and tokens[i + 1][0] is 'CALL_END' and tokens[i + 2][0] is 'INDENT'
+          tokens.splice i, 3, tokens[i + 1], token, tokens[i + 2]
       1
+
 
   # Methods may be optionally called without parentheses, for simple cases.
   # Insert the implicit parentheses here, so that the parser doesn't have to

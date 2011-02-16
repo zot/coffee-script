@@ -5,7 +5,7 @@
 
 {Some, None} = require './option'
 {Cons, Nil} = require './list'
-{SimpleMonad} = require './monad'
+{fmonad, SimpleMonad} = require './monad'
 require './util'
 
 #### compressed arrays
@@ -112,6 +112,7 @@ exports.itemsAdd = itemsAdd = (items, v) ->
   i.splice i.length, 0, v
   setBitset i, items.bitset | (nextPowerOf2 items.bitset)
 
+
 #### AMT DEFS
 
 # BasicAMTs have
@@ -126,17 +127,9 @@ class BasicAMT
   add: (v) -> if t = @subadd v or this instanceof AMTLeaf or this.shift == 35 then t else @put @prefix | (((log2 @items.bitset) + 1) << (shift - 5)), v
   flatMap: (f) -> @reduce ((tree, item, index) -> (f item, index).reduce ((tree, item) -> tree.add item), tree), EMPTY
   reduce: (f, a...) -> if a.length then @reduceArg f, a[0] else @reduceNoArg f
-  toString: -> "AMT(" + (mofor acc in (new AMTPrinter 0, Nil) do
+  toString: -> "AMT(" + (mofor acc in fmonad((n: 0, str: Nil), (i, v) -> n: i + 1, str: Cons((if i == @n then v else i + ': ' + v), @str)) do
     v, i in this
-    acc.print i, v).toString() + ")"
-
-
-class AMTPrinter extends SimpleMonad
-  constructor: (@expected, @output) ->
-  print: (i, v) -> new AMTPrinter i + 1, Cons (if i == @expected then v else i + ': ' + v), @output
-  toString: -> (mofor
-    [0]
-    @output.reverse()).join ', '
+    acc.f i, v).str.reverse().join(', ') + ")"
 
 
 exports.AMTLeaf = class AMTLeaf extends BasicAMT
@@ -201,16 +194,15 @@ class AMT extends BasicAMT
   @forImpl: (c1, c2, shift) ->
     s = if shift < 32 then ~((1 << shift) - 1) else 0
     p = c1.prefix & s
-    if p != (c2.prefix & s)
-      return @forImpl c1, c2, shift + 5
+    return @forImpl c1, c2, shift + 5 if p != (c2.prefix & s)
     i1 = (c1.prefix >>> (shift - 5)) & 31
     i2 = (c2.prefix >>> (shift - 5)) & 31
     new AMT shift, p, setBitset (if i1 < i2 then [c1, c2] else [c2, c1]), (1 << i1) | (1 << i2)
 
-
 # for testing
 exports.evenLog2 = evenLog2
 exports.countBits = countBits
-exports.AMTPrinter = AMTPrinter
+#exports.AMTPrinter = AMTPrinter
 exports.itemsRemove = itemsRemove
 exports.setBitset = setBitset
+{puts, inspect}=require 'sys'

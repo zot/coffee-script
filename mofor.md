@@ -18,7 +18,7 @@ Forms:
         statement
 	...
 
-1. reduction, filters, and monadic return
+1. reduction, filters, and map (monadic return)
 
     mofor var [in expr] do
       [var1 in] value1
@@ -28,6 +28,3 @@ Forms:
         value
 
 If the first two forms are used as an expression, they use mapping (map, flatMap).  If used as a statement, they use iteration (forEach).
-
-
-
