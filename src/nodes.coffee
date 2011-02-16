@@ -1620,7 +1620,7 @@ exports.MoBind = class MoBind extends Base
       expr      = "#{expr}.filter(#{@conditionalClosure false, v, @filter, (@filter.compile o, LEVEL_PAREN)})"
     return "#{if @returns then 'return ' else ''}#{expr}" if ! @next
     moMap = @reduce and !(@next instanceof MoBind)
-    return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if moMap then 'map' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure @reduce, v, @next, @next.compile o, LEVEL_TOP}#{if moMap then '()' else if @reduce then ', ' + @reduceVar else ''})"
+    return "#{if @returns then 'return ' else ''}#{expr}.#{if !@returns then 'forEach' else if moMap then 'map' else if @reduce then 'reduce' else if @last then 'map' else 'flatMap'}(#{@conditionalClosure @reduce and !moMap, v, @next, @next.compile o, LEVEL_TOP}#{if @reduce and !moMap then ', ' + @reduceVar else ''})"
 
   conditionalClosure: (reduce, v, n, code) ->
     str = "function(#{if reduce then @reduceVar + ', ' + v else v}){#{code}}"
