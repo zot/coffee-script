@@ -5,7 +5,7 @@
 
 {Some, None} = require './option'
 {Cons, Nil} = require './list'
-{state, SimpleMonad} = require './monad'
+{state} = require './monad'
 require './util'
 
 #### compressed arrays

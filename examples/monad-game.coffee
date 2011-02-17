@@ -1,13 +1,13 @@
 sys=require 'sys'
 {Nil, Cons, List} = require '../tools/list'
 {Some, None} = require '../tools/option'
+{ReductionGizmo} = require '../tools/monad'
 
-class Game
+class Game extends ReductionGizmo
   constructor: (@commands = Nil, @pos = None) ->
-  map: (f) -> new Game (Cons "END WITH #{f()}", @commands)
+  map: (f) -> new Game (Cons "END WITH #{f()}", @commands), @pos
   print: (msg) -> new Game (Cons "PRINT #{msg}", @commands), @pos
   move: (x, y) -> new Game (Cons "MOVE (#{x}, #{y})", @commands), Some [x, y]
-  reduce: (f, v) -> f this, this
   toString: -> "Game: #{(mofor
     [0]
     @commands.reverse()
