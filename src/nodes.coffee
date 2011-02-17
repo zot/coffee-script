@@ -1631,16 +1631,18 @@ exports.MoFilter = class MoFilter extends Base
   constructor: (@expr) ->
 
   addTo: (filter) ->
-    if filter
-      filter.next = @addTo filter.next
-    this
+    return this if !filter
+    filter.next = @addTo filter.next
+    filter
+
+  makeReturn: ->
 
   children: ['expr', 'next']
 
-  compileNode: (o) -> "return #{if next? then '(' else ''}#{@compileChain o}#{if next? then ')' else ''}"
+  compileNode: (o) -> "return #{if @next? then '(' else ''}#{@compileChain o}#{if @next? then ')' else ''}"
 
   compileChain: (o) ->
-    (@expr.compile o, LEVEL_LIST) + (if @next then ') and (' + (@next.compile o, LEVEL_LIST) else '')
+    (@expr.compile o, LEVEL_LIST) + (if @next then ') && (' + (@next.compileChain o, LEVEL_LIST) else '')
 
 
 #### Switch

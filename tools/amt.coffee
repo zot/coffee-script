@@ -137,6 +137,8 @@ exports.AMTLeaf = class AMTLeaf extends BasicAMT
   constructor: (@prefix, @items) ->
   inSubtree: (i) -> (i & ~31) == @prefix
   get: (i) -> if (i & ~31) == @prefix and itemsHas @items, i then Some(itemsGet @items, i) else None
+  first: -> @items[0]
+  last: -> @items[items.length - 1]
   mod: (add, i, v) ->
     if !@inSubtree i then @newSubtree add, i, v
     else if add == (itemsHas @items, i) and (!add or v == itemsGet @items, i) then this
@@ -165,6 +167,8 @@ class AMT extends BasicAMT
   inSubtree: (i) -> @shift == 35 or (i & ~((1 << @shift) - 1)) == @prefix
   childIndex: (i) -> i >>> @shift - 5
   get: (i) -> if @inSubtree i and itemsHas @items, (ind = @childIndex i) then (itemsGet @items, ind).get i else None
+  first: -> @items[0].first()
+  last: -> @items[@items.length - 1].last()
   mod: (add, i, v) ->
     return @newSubtree add, i, v if !@inSubtree i
     index = @childIndex i
