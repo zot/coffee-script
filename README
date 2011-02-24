@@ -112,7 +112,7 @@ which translates to this:
       (game.reduce ((game, _i3) ->
         [1,2,3,4,5].reduce ((game, _i4) ->
   	  [1,2,3,4,5].reduce ((game, _i5) ->
-	    game.moveShip x, y.reduce ((game, _i6) ->
+	    (game.moveShip x, y).reduce ((game, _i6) ->
 	      game.pos.reduce ((game, _i7) ->
 	        game.print "MOVED TO: #{p[0]}, #{p[1]}"
 	      ), game
